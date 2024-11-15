@@ -19,7 +19,7 @@
 #include <sys/time.h>
 
 #define SAMPLE_RATE (44100)
-#define CYCLE_SIZE (4096 * 64)
+#define CYCLE_SIZE (SAMPLE_RATE * 1)
 #define ALSA_BUFFER (512)  // Number of samples per ALSA period
 
 #define VOICES (8)
@@ -49,7 +49,7 @@ DDS dds[VOICES];
 #define DDS_SCALE (1 << DDS_FRAC_BITS)
 
 void dds_freq(DDS *dds, double f) {
-    if (dds->base > 0) {
+    if (0 && dds->base > 0) {
         f = f / dds->base;
     }
     dds->phase_increment = (int32_t)((f * dds->size) / SAMPLE_RATE * DDS_SCALE);
@@ -138,11 +138,13 @@ void make_sqr(int16_t *table, int size) {
 void make_tri(int16_t *table, int size) {
     int quarter = size / 4;
     for (int i = 0; i < size; i++) {
-        if (i < quarter) {
+        if (i < quarter) { // 0 -> 1/4
             table[i] = (4 * MAX_VALUE * i) / size;
-        } else if (i < 3 * quarter) {
+        } else if (i < 2 * quarter) { // 1/4 -> 1/2
             table[i] = MAX_VALUE - (4 * MAX_VALUE * (i - quarter)) / size;
-        } else {
+        } else if (i < 3 * quarter) { // 1/2 -> 3/4
+            table[i] = 0 - (4 * MAX_VALUE * (i - 2 * quarter)) / size;
+        } else { // 3/4 -> 4/4
             table[i] = MIN_VALUE + (4 * MAX_VALUE * (i - 3 * quarter)) / size;
         }
     }
@@ -150,8 +152,13 @@ void make_tri(int16_t *table, int size) {
 
 void make_sawup(int16_t *table, int size) {
     double acc = MIN_VALUE;
-    double rate = (double)MAX_VALUE*2.0/(double)size;
-    for (int i = 0; i < size; i++) {
+    double rate = (double)MAX_VALUE*2.0/(double)size*2;
+    for (int i = 0; i < size/2; i++) {
+        table[i] = (int16_t)acc;
+        acc += rate;
+    }
+    acc = MIN_VALUE;
+    for (int i = size/2; i < size; i++) {
         table[i] = (int16_t)acc;
         acc += rate;
     }
@@ -159,8 +166,13 @@ void make_sawup(int16_t *table, int size) {
 
 void make_sawdown(int16_t *table, int size) {
     double acc = MAX_VALUE;
-    double rate = (double)MAX_VALUE*2.0/(double)size;
-    for (int i = 0; i < size; i++) {
+    double rate = (double)MAX_VALUE*2.0/(double)size*2;
+    for (int i = 0; i < size/2; i++) {
+        table[i] = (int16_t)acc;
+        acc -= rate;
+    }
+    acc = MAX_VALUE;
+    for (int i = size/2; i < size; i++) {
         table[i] = (int16_t)acc;
         acc -= rate;
     }
