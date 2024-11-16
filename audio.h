@@ -5,10 +5,12 @@
 
 #define SAMPLE_RATE (44100)
 
-void listalsa(char *what);
-int exsynth_open(char *device, int sample_rate,  int buffer_len);
-int exsynth_main(int *flag, void (*fn)(int16_t*,int));
-void exsynth_close(void);
+#define AUDIO_NO_MATCH (1000)
+
+int audio_list(char *what, char *filter);
+int audio_open(char *outdev, char *indev, int sample_rate,  int buffer_len);
+int audio_main(int *flag, void (*fn)(int16_t*,int));
+void audio_close(void);
 
 extern struct timeval rtns0;
 extern struct timeval rtns1;

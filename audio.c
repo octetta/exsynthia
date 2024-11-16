@@ -13,9 +13,197 @@ long int diff = 0;
 #define LATENCY_HACK_MS (100)
 int latency_hack_ms = LATENCY_HACK_MS;
 
-// ALSA variables
-snd_pcm_t *pcm_handle = NULL;
-snd_pcm_hw_params_t *hw_params = NULL;
+static int audio_buffer_len = 1024;
+static int16_t *audio_buffer = NULL;
+static int audio_sample_rate = 44100;
+
+// ---------------
+
+// miniaudio stuff
+
+#define MA_NO_FLAC
+#define MA_NO_MP3
+#define MA_NO_RESOURCE_MANAGER
+#define MA_NO_NODE_GRAPH
+#define MA_NO_ENGINE
+#define MA_NO_GENERATION
+//#define MA_DEBUG_OUTPUT
+#define MINIAUDIO_IMPLEMENTATION
+
+#define MA_NO_JACK
+#define MA_NO_PULSEAUDIO
+
+#include "miniaudio.h"
+
+static ma_device_config config;
+static ma_device device;
+
+static unsigned char custom_data[2048];
+
+static ma_context context;
+
+static ma_device_info* pPlaybackInfos;
+static ma_uint32 playbackCount;
+
+static ma_device_info* pCaptureInfos;
+static ma_uint32 captureCount;
+
+static int playback = -1;
+static int pbmax = -1;
+static int capture = -1;
+static int capmax = -1;
+
+static char MA_started = 0;
+
+int MA_init(void) {
+    if (MA_started) return 0;
+    MA_started = 1;
+    if (ma_context_init(NULL, 0, NULL, &context) != MA_SUCCESS) {
+    printf("failed to get MA context\n");
+    return -1;
+  }
+
+  if (ma_context_get_devices(&context,
+    &pPlaybackInfos,
+    &playbackCount,
+    &pCaptureInfos,
+    &captureCount) != MA_SUCCESS) {
+    return -1;
+  }
+  int i;
+
+  for (i=0; i<playbackCount; i++) {
+    pbmax = i;
+  }
+  if (pbmax > 0) {
+    playback = 0;
+  }
+
+  for (i=0; i<captureCount; i++) {
+    capmax = i;
+  }
+}
+
+#include <ctype.h>
+
+static void strlower(char *s) {
+    while (s && *s != '\0') {
+        if (*s >= 'A' && *s <= 'Z') *s = tolower(*s);
+        s++;
+    }
+}
+
+static int MA_audio_list(char *what, char *filter) {
+  MA_init();
+  int i;
+  char output = 0;
+  if (filter == NULL) output = 1;
+  if (filter && filter[0] == '\0') output = 1;
+  if (output) puts("playback devices");
+  char name[1024];
+  char lfilter[1024];
+  if (!output) {
+    strcpy(lfilter, filter);
+    strlower(lfilter);
+  }
+  for (i=0; i<playbackCount; i++) {
+    strcpy(name, pPlaybackInfos[i].name);
+    strlower(name);
+    if (output) printf("%d <%s>\n", i, name);
+    if (!output) {
+        char *needle = lfilter;
+        char *haystack = name;
+        if (strstr(haystack, needle)) {
+            // printf("<%s> found in <%s> -> %d\n", needle, haystack, i);
+            return i;
+        }
+    }
+  }
+
+  if (output) puts("capture devices");
+  for (i=0; i<captureCount; i++) {
+    if (output) printf("%d : %s\n", i, pCaptureInfos[i].name);
+  }
+  return 1000;
+}
+
+static void (*audio_fn)(int16_t*,int) = NULL;
+
+static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frame_count) {
+    if (audio_fn) {
+        audio_fn(audio_buffer, frame_count);
+        int16_t *poke = (int16_t *)pOutput;
+        int ptr = 0;
+        for (int i=0; i<frame_count; i++) {
+            poke[ptr++] = audio_buffer[i];
+            poke[ptr++] = audio_buffer[i];
+        }
+    }
+}
+
+static int MA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
+    audio_fn = fn;
+}
+
+static void audio_notification_cb(const ma_device_notification* pNotification) {
+}
+
+static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
+    MA_init();
+    if (outdev == NULL) return -1;
+    if (outdev[0] == '\0') return -1;
+    int playback = atoi(outdev);
+    if (playback < 0) return -1;
+    if (playback == 0) {
+        //
+    } else if (playback >= pbmax) return 0;
+
+    config = ma_device_config_init(ma_device_type_playback);
+    // TODO when using a capture device:
+    // config = ma_device_config_init(ma_device_type_duplex);
+      config.playback.pDeviceID = &pPlaybackInfos[playback].id;
+  if (capture >= 0) {
+    config.capture.pDeviceID = &pCaptureInfos[capture].id;
+  }
+  config.playback.format   = ma_format_s16;
+  //config.playback.format   = ma_format_f32;
+  config.playback.channels = 2;
+  config.sampleRate        = sample_rate;
+  config.dataCallback      = audio_data_cb;
+  config.notificationCallback = audio_notification_cb;
+  config.pUserData         = custom_data;
+
+  if (capture >= 0) {
+    config.capture.format = ma_format_s16;
+    config.capture.channels = 2;
+  }
+
+  config.periodSizeInFrames = buffer_len;
+
+  if (ma_device_init(&context, &config, &device) != MA_SUCCESS) {
+    // printf("failed to open I/O devices\n");
+    ma_device_uninit(&device);
+    ma_context_uninit(&context);
+    return -1;
+  }
+ 
+  // start audio processing
+  if (ma_device_start(&device) != MA_SUCCESS) {
+    // printf("Failed to start playback device.\n");
+    ma_device_uninit(&device);
+    return -1;
+  }
+  return 0;
+}
+
+void MA_audio_close(void) {
+}
+
+// ----------
+
+// ALSA stuff
+static snd_pcm_t *pcm_handle = NULL;
+static snd_pcm_hw_params_t *hw_params = NULL;
 
 // ALSA error handler
 void check_alsa_error(int err, const char *msg) {
@@ -28,7 +216,7 @@ void check_alsa_error(int err, const char *msg) {
 }
 
 // ALSA setup
-int setup_alsa(char *device, int sample_rate, int buffer_size) {
+static int ALSA_open(char *device, char *indev, int sample_rate, int buffer_size) {
     // printf("setup_alsa : <%s>\n", device);
     int err;
 
@@ -103,23 +291,13 @@ int setup_alsa(char *device, int sample_rate, int buffer_size) {
     return 0;
 }
 
-static int audio_buffer_len = 1024;
-int16_t *audio_buffer = NULL;
-int audio_sample_rate = 44100;
 
-int exsynth_open(char *device, int sample_rate, int buffer_len) {
-  audio_buffer_len = buffer_len;
-  audio_buffer = (int16_t *)malloc(buffer_len * sizeof(int16_t));
-  audio_sample_rate = sample_rate;
-  return setup_alsa(device, audio_sample_rate, audio_buffer_len);
-}
-
-void exsynth_close(void) {
+void ALSA_audio_close(void) {
   snd_pcm_close(pcm_handle);
 }
 
-int exsynth_main(int *flag, void (*fn)(int16_t*,int)) {
-    int16_t *buffer = audio_buffer;;
+static int ALSA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
+    int16_t *buffer = audio_buffer;
     int err;
     while (*flag) {
         fn(buffer, audio_buffer_len);
@@ -149,9 +327,10 @@ int exsynth_main(int *flag, void (*fn)(int16_t*,int)) {
             }
         }
     }
+    return 0;
 }
 
-void listalsa(char *what) {
+static int ALSA_audio_list(char *what, char *filter) {
     int status;
     char *kind = strdup(what);
     char **hints;
@@ -168,5 +347,46 @@ void listalsa(char *what) {
         }
         snd_device_name_free_hint((void **)hints);
     }
+    return 0;
 }
+
+// -----------
+
+int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
+  audio_buffer_len = buffer_len;
+  audio_buffer = (int16_t *)malloc(buffer_len * sizeof(int16_t));
+  audio_sample_rate = sample_rate;
+  #ifdef USE_ALSA
+  puts("using raw ALSA");
+  return ALSA_open(outdev, indev, audio_sample_rate, audio_buffer_len);
+  #else
+  puts("using MiniAudio");
+  return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
+  #endif
+}
+
+int audio_main(int *flag, void (*fn)(int16_t*,int)) {
+  #ifdef USE_ALSA
+  return ALSA_audio_main(flag, fn);
+  #else
+  return MA_audio_main(flag, fn);
+  #endif
+}
+
+int audio_list(char *what, char *filter) {
+  #ifdef USE_ALSA
+  return ALSA_audio_list(what, filter);
+  #else
+  return MA_audio_list(what, filter);
+  #endif
+}
+
+void audio_close(void) {
+  #ifdef USE_ALSA
+  ALSA_audio_close();
+  #else
+  MA_audio_close();
+  #endif
+}
+
 

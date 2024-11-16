@@ -16,17 +16,12 @@
 
 #include "miniwav.h"
 
-// pid_t audio_pid;
-// pid_t user_pid;
-// pid_t midi_pid;
-
 #include <sys/time.h>
 
 #define CYCLE_SIZE (SAMPLE_RATE * 1)
-#define ALSA_BUFFER (512)  // Number of samples per ALSA period
+#define BUFFER_SIZE (2048)  // Number of samples per ALSA period
 
 #define VOICES (8)
-
 
 // DDS structure
 typedef struct {
@@ -398,15 +393,12 @@ char *mytok(char *str, char tok, int *next) {
 }
 
 
-
-char *device = "default";
-// int voice = 0;
+char device[1024] = "default";
 
 void *midi(void *arg) {
-    // midi_pid = getpid();
     while (running) {
         // out("MIDI");
-        sleep(5);
+        sleep(1);
     }
 }
 
@@ -591,54 +583,26 @@ int16_t env_next(env_t* env) {
 
 env_t env[VOICES];
 
-long long int total_cpu_usage(void) {
-    long long int t;
-    FILE *f = fopen("/proc/stat", "rt");
-    if (f) {
-        char buf[1024];
-        char *line = fgets(buf, sizeof(buf), f);
-        if (line) {
-            long long int user;
-            long long int nice;
-            long long int system;
-            long long int idle;
-            int n = sscanf(line, "%*s %llu %llu %llu %llu", &user, &nice, &system, &idle);
-            // printf("n:%d %llu %llu %llu %llu\n", n, user, nice, system, idle);
-            t = user + nice + system + idle;
-        }
-        fclose(f);
-        return t;
-    }
-    return t;
-}
-
-long int pid_times(pid_t pid) {
-    char file[1024];
-    sprintf(file, "/proc/%d/stat", (int)pid);
-    long long int t;
-    FILE *f = fopen(file, "rt");
-    if (f) {
-        char buf[1024];
-        char *line = fgets(buf, sizeof(buf), f);
-        if (line) {
-            long int usertime;
-            long int systemtime;
-            int n = sscanf(line,
-                "%*s %*s %*s %*s" //pid,command,state,ppid
-                "%*s %*s %*s %*s %*s %*s %*s %*s %*s"
-                "%lu %lu" //usertime,systemtime
-                "%*s %*s %*s %*s %*s %*s %*s"
-                "%*s", //virtual memory size in bytes
-                
-                &usertime, &systemtime);
-            // printf("n:%d %lu %lu\n", n, usertime, systemtime);
-            t = usertime + systemtime;
-        }
-        fclose(f);
-        return t;
-    }
-    return t;
-}
+// long long int total_cpu_usage(void) {
+//     long long int t;
+//     FILE *f = fopen("/proc/stat", "rt");
+//     if (f) {
+//         char buf[1024];
+//         char *line = fgets(buf, sizeof(buf), f);
+//         if (line) {
+//             long long int user;
+//             long long int nice;
+//             long long int system;
+//             long long int idle;
+//             int n = sscanf(line, "%*s %llu %llu %llu %llu", &user, &nice, &system, &idle);
+//             // printf("n:%d %llu %llu %llu %llu\n", n, user, nice, system, idle);
+//             t = user + nice + system + idle;
+//         }
+//         fclose(f);
+//         return t;
+//     }
+//     return t;
+// }
 
 #define AFACTOR (0.025)
 
@@ -665,22 +629,6 @@ void show_voice(char flag, int i) {
         dds[i].phase_increment_divisor >> DDS_FRAC_BITS,
         dds[i].base);
     puts("");
-}
-
-void cpu_usage(char *name, pid_t pid) {
-    int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
-    // printf("ncpu=%d\n", ncpu);
-    long long t1 = total_cpu_usage();
-    // printf("t1 = %llu\n", t1);
-    long p1 = pid_times(pid);
-    // printf("p1=%ld\n", p1);
-    sleep(1);
-    long long t2 = total_cpu_usage();
-    // printf("t2 = %llu\n", t2);
-    long p2 = pid_times(pid);
-    // printf("p2=%ld\n", p2);
-    double usage = (ncpu * (p2-p1)) * 100 / (double)(t2-t1);
-    printf("%s cpu-usage=%g\n", name, usage);
 }
 
 void update_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
@@ -800,10 +748,6 @@ int wire(char *line, int *thisvoice) {
             of[v] = 440;
             sh[v] = 0;
             ismod[v] = 0;
-        // } else if (c == 'S') {
-        //     cpu_usage("audio", audio_pid);
-        //     cpu_usage("user", user_pid);
-        //     cpu_usage("midi", midi_pid);
         } else if (c == 'F') {
             int f = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1079,7 +1023,6 @@ int wire(char *line, int *thisvoice) {
 
 void *user(void *arg) {
     int voice = 0;
-    // user_pid = getpid();
     linenoiseHistoryLoad(HISTORY_FILE);
     while (1) {
         char *line = linenoise("> ");
@@ -1184,26 +1127,40 @@ void synth(int16_t *buffer, int period_size) {
 
 
 int main(int argc, char *argv[]) {
-    //int err;
-    //int16_t buffer[ALSA_BUFFER];
-
+    char devicename[1024] = "default";
     if (argc > 1) {
         if (argv[1][0] == '-') {
-            if (argv[1][1] == 'a') {
-                listalsa("pcm");
+            switch(argv[1][1]) {
+            case 'l':
+                audio_list("pcm", "");
                 return 0;
-            }
-            if (argv[1][1] == 'm') {
-                listalsa("rawmidi");
+            case 'm':
+                audio_list("rawmidi", "");
                 return 0;
+            case 'd':
+                strcpy(devicename, &argv[1][2]);
+                break;
             }
-        } else {
-            device = argv[1];
         }
     }
 
-    printf("DDS Q%d.%d\n", 32-DDS_FRAC_BITS, DDS_FRAC_BITS);
+    int deviceindex = 0;
+    
+    if (devicename[0] >= '0' && devicename[0] <= '9') {
+        deviceindex = atoi(devicename);
+        printf("use index %d\n", deviceindex);
+    } else {
+        printf("use filter %s\n", devicename);
+        deviceindex = audio_list("pcm", devicename);
+    }
+    sprintf(device, "%d", deviceindex);
 
+    if (deviceindex == AUDIO_NO_MATCH) {
+        printf("no device <%s> found\n", devicename);
+        return 0;
+    }
+
+    printf("DDS Q%d.%d\n", 32-DDS_FRAC_BITS, DDS_FRAC_BITS);
     printf("ENV Q%d.%d\n", 32-ENV_FRAC_BITS, ENV_FRAC_BITS);
 
     make_sine(sine, sizeof(sine)/sizeof(int16_t));
@@ -1215,18 +1172,16 @@ int main(int argc, char *argv[]) {
     make_noise(noise, sizeof(noise)/sizeof(int16_t));
     make_none(none, sizeof(none)/sizeof(int16_t));
 
-    out("USRWAV");
+    printf("PCM patches %d\n", USRWAVMAX);
     for (int i=0; i<USRWAVMAX; i++) {
         usrwav[i] = NULL;
         usrlen[i] = 0;
         usrnam[i][0] = '\0';
     }
 
-    out("VOICES");
+    printf("voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {
-        int mod = i+1;
         of[i] = 440.0;
-        // of[mod] = 0.25;
         ofm[i] = -1;
         ismod[i] = 0;
         ow[i] = SINE;
@@ -1234,23 +1189,9 @@ int main(int argc, char *argv[]) {
         shi[i] = 0;
         dds_init(&dds[i], sizeof(sine)/sizeof(int16_t), of[i], sine, i);
         oa[i] = 0;
-        // dds_init(&dds[mod], CYCLE_SIZE, of[mod]);
-        // if (i < 4) {
-        //     ow[i] = SINE;
-        //     ow[mod] = SINE;
-        //     oa[i] = .01;
-        //     oa[mod] = 0;
-        // } else {
-        //     ow[i] = NONE;
-        //     ow[mod] = NONE;
-        //     oa[i] = 0;
-        //     oa[mod] = 0;
-        // }
         calc_ratio(i);
-        calc_ratio(mod);
     }
 
-    out("ENVS");
     for (int i=0; i<VOICES; i+=1) {
         // simple
         env_init(&env[i], 
@@ -1260,33 +1201,31 @@ int main(int argc, char *argv[]) {
             ENV_SCALE, (ENV_SCALE * 7) / 10);
     }
 
-    out("UI");
+    // out("UI");
     pthread_t user_thread;
     pthread_create(&user_thread, NULL, user, NULL);
     pthread_detach(user_thread);
 
-    out("MIDI");
+    // out("MIDI");
     pthread_t midi_thread;
     pthread_create(&midi_thread, NULL, midi, NULL);
     pthread_detach(midi_thread);
 
     gettimeofday(&rtns0, NULL);
     fflush(stdout);
-    // audio_pid = getpid();
 
     signal(SIGABRT, signal_handler);
 
-    out("ALSA");
-    // sleep(5);
-    if (exsynth_open(device, SAMPLE_RATE, ALSA_BUFFER) != 0) {
+    printf("using playback device %s\n", device);
+    if (audio_open(device, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
         out("WTF?");
-        // sleep(60);
     } else {
-      exsynth_main(&running, synth);
-      exsynth_close();
+      audio_main(&running, synth);
+      while (running) {
+        sleep(1);
+      }
+      audio_close();
     }
-
-
 
     pthread_join(user_thread, NULL);
     pthread_join(midi_thread, NULL);
