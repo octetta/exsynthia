@@ -13,6 +13,7 @@ LIBS = \
 EXTRA = \
 linenoise.c \
 miniwav.c \
+audio.c \
 #
 
 synth: synth.c $(EXTRA)

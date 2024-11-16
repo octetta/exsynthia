@@ -1,13 +1,17 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <signal.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "audio.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 #undef M_PI
 #define M_PI (double)(355.0/113.0)
 
-#include <alsa/asoundlib.h>
 #include <pthread.h>
 
 #include "miniwav.h"
@@ -18,16 +22,11 @@
 
 #include <sys/time.h>
 
-#define SAMPLE_RATE (44100)
 #define CYCLE_SIZE (SAMPLE_RATE * 1)
 #define ALSA_BUFFER (512)  // Number of samples per ALSA period
 
 #define VOICES (8)
 
-struct timeval rtns0;
-struct timeval rtns1;
-
-typedef int16_t int16_t;
 
 // DDS structure
 typedef struct {
@@ -49,8 +48,9 @@ DDS dds[VOICES];
 #define DDS_SCALE (1 << DDS_FRAC_BITS)
 
 void dds_freq(DDS *dds, double f) {
-    if (0 && dds->base > 0) {
-        f = f / dds->base;
+    if (dds->base > 0) {
+        // how to adjust for the real base...
+        f = (f / dds->base) * 0.32874; // the magic number is magic... i found it via experimentation but need to learn what it means
     }
     dds->phase_increment = (int32_t)((f * dds->size) / SAMPLE_RATE * DDS_SCALE);
 }
@@ -92,10 +92,6 @@ int16_t dds_next(DDS *dds) {
     return sample;
 }
 
-// ALSA variables
-snd_pcm_t *pcm_handle = NULL;
-snd_pcm_hw_params_t *hw_params = NULL;
-
 #define USRWAVMAX (100)
 
 int16_t sine[CYCLE_SIZE];
@@ -109,6 +105,8 @@ int16_t none[CYCLE_SIZE];
 int16_t *usrwav[USRWAVMAX];
 char usrnam[USRWAVMAX][32];
 int usrlen[USRWAVMAX];
+char usros[USRWAVMAX];
+double usrbase[USRWAVMAX];
 
 #define MAX_VALUE 32767
 #define MIN_VALUE -32767
@@ -191,17 +189,6 @@ void make_none(int16_t *table, int size) {
 }
 
 
-
-// ALSA error handler
-void check_alsa_error(int err, const char *msg) {
-    if (err < 0) {
-        fprintf(stderr, "%s: %s\n", msg, snd_strerror(err));
-        fflush(stderr);
-        fflush(stdout);
-        // exit(EXIT_FAILURE);
-    }
-}
-
 void out(char *s) {
     puts(s);
     fflush(stdout);
@@ -215,82 +202,6 @@ void signal_handler(int sig) {
         puts("something else");
         exit(EXIT_FAILURE);
     }
-}
-
-// ALSA setup
-int setup_alsa(char *device) {
-    // printf("setup_alsa : <%s>\n", device);
-    int err;
-
-    // Open ALSA device for playback
-    err = snd_pcm_open(&pcm_handle, device, SND_PCM_STREAM_PLAYBACK, 0);
-    if (err < 0) {
-        check_alsa_error(err, "Cannot open PCM device");
-        return -1;
-    }
-
-    // Allocate hardware parameters
-    err = snd_pcm_hw_params_malloc(&hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_malloc");
-        return -1;
-    }
-    
-    err = snd_pcm_hw_params_any(pcm_handle, hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_any");
-        return -1;
-    }
-
-    // Set hardware parameters
-    err = snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_access");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16_LE);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_format");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_channels(pcm_handle, hw_params, 1);  // Mono output
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_channels");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_rate(pcm_handle, hw_params, SAMPLE_RATE, 0);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_rate");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, ALSA_BUFFER, 0);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_period_size");
-        return -1;
-    }
-
-    // Apply hardware parameters
-    err = snd_pcm_hw_params(pcm_handle, hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "Cannot set hardware parameters");
-        return -1;
-    }
-
-    // Free hardware parameters structure
-    snd_pcm_hw_params_free(hw_params);
-
-    // Prepare PCM for playback
-    err = snd_pcm_prepare(pcm_handle);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_prepare");
-        return -1;
-    }
-
-    return 0;
 }
 
 #if 0
@@ -428,7 +339,7 @@ int bot[VOICES];
 
 #include "linenoise.h"
 
-unsigned long long sent = 0;
+//unsigned long long sent = 0;
 
 int agcd(int a, int b) {
     while (b != 0) {
@@ -486,13 +397,8 @@ char *mytok(char *str, char tok, int *next) {
     }
 }
 
-long int rtms = 0;
-long int btms = 0;
-long int diff = 0;
 
-#define LATENCY_HACK_MS (100)
 
-int latency_hack_ms = LATENCY_HACK_MS;
 char *device = "default";
 // int voice = 0;
 
@@ -752,9 +658,12 @@ void show_voice(char flag, int i) {
     if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
     if (ow[i] == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
     printf(" #");
-    printf(" pacc:%g pinc:%d plen:%d pdiv:%d",
-        (double)dds[i].phase_accumulator/(double)(DDS_SCALE),
-        dds[i].phase_increment, dds[i].size, dds[i].phase_increment_divisor);
+    printf(" acc:%ld inc:%f len:%d div:%d b:%f",
+        (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
+        (double)dds[i].phase_increment / (double)DDS_SCALE,
+        dds[i].size,
+        dds[i].phase_increment_divisor >> DDS_FRAC_BITS,
+        dds[i].base);
     puts("");
 }
 
@@ -820,6 +729,8 @@ int wire(char *line, int *thisvoice) {
                     int16_t *dest = malloc(frames * sizeof(int16_t));
                     usrwav[i] = dest;
                     usrlen[i] = frames;
+                    usros[i] = 0;
+                    usrbase[i] = 440.0;
                     int n = mw_get(name, dest, frames);
                     strcpy(usrnam[i], name);
                 }
@@ -970,14 +881,22 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'b') {
             int loop = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            dds[voice].oneshot = (loop != 1);
+            dds[voice].oneshot = (loop == 0);
         } else if (c == 'p') {
             int patch = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (patch >= 0 && patch <= 99) {
                 if (usrwav[patch] && usrlen[patch]) {
                     op[voice] = patch;
-                    update_dds_extra(voice, usrwav[patch], usrlen[patch], 0, 0, 440);
+                    int active = 0;
+                    update_dds_extra(
+                      voice,
+                      usrwav[patch],
+                      usrlen[patch], usros[patch], active, usrbase[patch]);
+#if 0
+                    printf("v%d p%d ptr:%p len:%d oneshot:%d active:%d base:%f\n",
+                      voice, patch, usrwav[patch], usrlen[patch], usros[patch], active, usrbase[patch]);
+#endif
                 }
             }
         } else if (c == 'P') {
@@ -1041,7 +960,13 @@ int wire(char *line, int *thisvoice) {
                         break;
                     case USR3: // parts
                         break;
+                    default:
+                        puts("UNEXPECTED");
+                        break;
                 }
+#if 0
+                printf("v%d ptr:%p len:%d oneshot:%d active:%d base:%f\n", voice, ptr, len, oneshot, forceactive, base);
+#endif
                 update_dds_extra(voice, ptr, len, oneshot, forceactive, base);
             }
         
@@ -1257,29 +1182,10 @@ void synth(int16_t *buffer, int period_size) {
     }
 }
 
-void listalsa(char *what) {
-    int status;
-    char *kind = strdup(what);
-    char **hints;
-    status = snd_device_name_hint(-1, kind, (void ***)&hints);
-    if (status < 0) {
-        puts("NOPE");
-    } else {
-        for (char **n = hints; *n != NULL; n++) {
-            char *name = snd_device_name_get_hint(*n, "NAME");
-            if (name != NULL) {
-                puts(name);
-                free(name);
-            }
-        }
-        snd_device_name_free_hint((void **)hints);
-    }
-}
-
 
 int main(int argc, char *argv[]) {
-    int err;
-    int16_t buffer[ALSA_BUFFER];
+    //int err;
+    //int16_t buffer[ALSA_BUFFER];
 
     if (argc > 1) {
         if (argv[1][0] == '-') {
@@ -1372,47 +1278,18 @@ int main(int argc, char *argv[]) {
 
     out("ALSA");
     // sleep(5);
-    if (setup_alsa(device) != 0) {
+    if (exsynth_open(device, SAMPLE_RATE, ALSA_BUFFER) != 0) {
         out("WTF?");
         // sleep(60);
+    } else {
+      exsynth_main(&running, synth);
+      exsynth_close();
     }
 
-    while (running) {
-        synth(buffer, ALSA_BUFFER);
 
-        if ((err = snd_pcm_wait(pcm_handle, 1000)) < 0) {
-            check_alsa_error(err, "PCM wait failed");
-        }
-        if ((err = snd_pcm_writei(pcm_handle, buffer, ALSA_BUFFER)) < 0) {
-            if (err == -EPIPE) {
-                // Recover from buffer underrun
-                snd_pcm_prepare(pcm_handle);
-            } else {
-                check_alsa_error(err, "Failed to write to PCM device");
-            }
-        } else {
-            // try to not get too far ahead of realtime...
-            // without this, we get about 24 seconds ahead of realtime!
-            #define TV2MS(t) ((t.tv_sec*1000)+(t.tv_usec/1000))
-            sent+=ALSA_BUFFER;
-            gettimeofday(&rtns1, NULL);
-            rtms = TV2MS(rtns1)-TV2MS(rtns0);
-            btms = sent * 1000 / SAMPLE_RATE;
-            diff = btms - rtms;
-            if (diff > latency_hack_ms) {
-                diff -= latency_hack_ms;
-                usleep(diff * 1000);
-            }
-        }
-    }
-
-    // Cleanup and close
-    snd_pcm_close(pcm_handle);
 
     pthread_join(user_thread, NULL);
     pthread_join(midi_thread, NULL);
-
-
 
     return 0;
 }
