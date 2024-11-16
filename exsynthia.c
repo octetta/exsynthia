@@ -24,7 +24,7 @@
 #define CYCLE_SIZE (SAMPLE_RATE * 1)
 #define BUFFER_SIZE (2048)  // Number of samples per ALSA period
 
-#define VOICES (8)
+#define VOICES (24)
 
 // DDS structure
 typedef struct {

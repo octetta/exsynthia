@@ -84,6 +84,7 @@ int MA_init(void) {
   for (i=0; i<captureCount; i++) {
     capmax = i;
   }
+  return 0;
 }
 
 #include <ctype.h>
@@ -145,9 +146,11 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
 
 static int MA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
     audio_fn = fn;
+    return 0;
 }
 
 static void audio_notification_cb(const ma_device_notification* pNotification) {
+  return;
 }
 
 static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
@@ -366,7 +369,7 @@ int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   puts("using raw ALSA");
   return ALSA_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #else
-  puts("using MiniAudio");
+  puts("using miniaudio : https://miniaud.io");
   return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #endif
 }

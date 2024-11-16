@@ -1,5 +1,5 @@
 TARGETS = \
-synth \
+exsynthia \
 #
 
 all: $(TARGETS)
@@ -27,8 +27,8 @@ linenoise.o : linenoise.c linenoise.h
 audio.o : audio.c audio.h
 	gcc -c audio.c
 
-synth: synth.c $(MYLIBS)
-	gcc -g synth.c $(MYLIBS) -o $@ $(LIBS)
+exsynthia: exsynthia.c $(MYLIBS)
+	gcc -g exsynthia.c $(MYLIBS) -o $@ $(LIBS)
 
 clean:
 	rm -f $(TARGETS) $(MYLIBS)

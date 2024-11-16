@@ -1,5 +1,7 @@
 .synth_history
 synth
+.exsynthia_history
+exsynthia
 _wave*
 *.o
 *.dSYM
