@@ -1,3 +1,6 @@
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -630,7 +633,7 @@ void show_voice(char flag, int i) {
     if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
     if (ow[i] == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
     printf(" #");
-    printf(" acc:%lld inc:%f len:%d div:%d b:%f",
+    printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
         (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
         (double)dds[i].phase_increment / (double)DDS_SCALE,
         dds[i].size,
