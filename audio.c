@@ -19,6 +19,8 @@ static int audio_buffer_len = 1024;
 static int16_t *audio_buffer = NULL;
 static int audio_sample_rate = 44100;
 
+#define TV2MS(t) ((t.tv_sec*1000)+(t.tv_usec/1000))
+
 // ---------------
 
 // miniaudio stuff
@@ -141,6 +143,14 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
             poke[ptr++] = audio_buffer[i];
             poke[ptr++] = audio_buffer[i];
         }
+        sent+=frame_count;
+#if 0
+        gettimeofday(&rtns1, NULL);
+        rtms = TV2MS(rtns1)-TV2MS(rtns0);
+        btms = sent * 1000 / audio_sample_rate;
+        diff = btms - rtms;
+        if (diff > latency_hack_ms) diff -= latency_hack_ms;
+#endif
     }
 }
 
@@ -322,7 +332,6 @@ static int ALSA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
         } else {
             // try to not get too far ahead of realtime...
             // without this, we get about 24 seconds ahead of realtime!
-            #define TV2MS(t) ((t.tv_sec*1000)+(t.tv_usec/1000))
             sent+=audio_buffer_len;
             gettimeofday(&rtns1, NULL);
             rtms = TV2MS(rtns1)-TV2MS(rtns0);

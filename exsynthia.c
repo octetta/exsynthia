@@ -723,7 +723,8 @@ int wire(char *line, int *thisvoice) {
                 printf("# btms %ldms\n", btms);
                 printf("# diff %ldms\n", btms-rtms);
                 printf("# L%d\n", latency_hack_ms);
-                printf("# D%s\n", device);
+                printf("# -d%s\n", device);
+                printf("# sent %lld\n", sent);
             } else {
                 int i = voice;
                 char flag = ' ';
