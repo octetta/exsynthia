@@ -617,7 +617,11 @@ env_t env[VOICES];
 
 #define AFACTOR (0.025)
 
-void show_voice(char flag, int i) {
+void show_voice(char flag, int i, char forceshow) {
+    if (forceshow == 0) {
+      if (top[i] == 0) return;
+      if (of[i] == 0) return;
+    }
     printf("%c v%d w%d f%.4f a%.4f", flag, i, ow[i], of[i], oa[i] * (1.0 / AFACTOR));
     // printf(" t%d b%d", top[i], bot[i]);
     if (exvoice[i][EXINTERP].b) printf(" Z1");
@@ -717,7 +721,7 @@ int wire(char *line, int *thisvoice) {
                 for (int i=0; i<VOICES; i++) {
                     char flag = ' ';
                     if (i == voice) flag = '*';
-                    show_voice(flag, i);
+                    show_voice(flag, i, 0);
                 }
                 printf("# rtms %ldms\n", rtms);
                 printf("# btms %ldms\n", btms);
@@ -729,7 +733,7 @@ int wire(char *line, int *thisvoice) {
                 int i = voice;
                 char flag = ' ';
                 if (i == voice) flag = '*';
-                show_voice(flag, i);
+                show_voice(flag, i, 1);
             }
             continue;
         } else if (c == 'Z') {
