@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#ifdef USE_ALSA
 #include <alsa/asoundlib.h>
+#endif
 
 struct timeval rtns0;
 struct timeval rtns1;
@@ -201,6 +203,8 @@ void MA_audio_close(void) {
 
 // ----------
 
+#ifdef USE_ALSA
+
 // ALSA stuff
 static snd_pcm_t *pcm_handle = NULL;
 static snd_pcm_hw_params_t *hw_params = NULL;
@@ -349,6 +353,8 @@ static int ALSA_audio_list(char *what, char *filter) {
     }
     return 0;
 }
+
+#endif
 
 // -----------
 

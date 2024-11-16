@@ -10,10 +10,13 @@ audio.o \
 miniwav.o
 
 LIBS = \
--lasound \
 -lm \
 -lpthread \
 #
+
+ifeq ($(shell uname), Linux)
+LIBS += -lasound
+endif
 
 miniwav.o : miniwav.c miniwav.h
 	gcc -c miniwav.c

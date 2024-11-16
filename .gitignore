@@ -2,3 +2,4 @@
 synth
 _wave*
 *.o
+*.dSYM

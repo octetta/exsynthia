@@ -392,14 +392,22 @@ char *mytok(char *str, char tok, int *next) {
     }
 }
 
+#ifdef __APPLE__
+#define DEFAULT_DEVICE "built-in output"
+#endif
 
-char device[1024] = "default";
+#ifdef __linux__
+#define DEFAULT_DEVICE "default"
+#endif
+
+char device[1024] = DEFAULT_DEVICE;
 
 void *midi(void *arg) {
     while (running) {
         // out("MIDI");
         sleep(1);
     }
+    return NULL;
 }
 
 // inspired by AMY :)
@@ -622,7 +630,7 @@ void show_voice(char flag, int i) {
     if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
     if (ow[i] == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
     printf(" #");
-    printf(" acc:%ld inc:%f len:%d div:%d b:%f",
+    printf(" acc:%lld inc:%f len:%d div:%d b:%f",
         (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
         (double)dds[i].phase_increment / (double)DDS_SCALE,
         dds[i].size,
@@ -1017,6 +1025,7 @@ int wire(char *line, int *thisvoice) {
     if (thisvoice) {
         *thisvoice = voice;
     }
+  return 0;
 }
 
 #define HISTORY_FILE ".synth_history"
@@ -1033,6 +1042,7 @@ void *user(void *arg) {
     }
     linenoiseHistorySave(HISTORY_FILE);
     running = 0;
+    return NULL;
 }
 
 int16_t *waves[WAVE_MAX] = {
@@ -1127,7 +1137,7 @@ void synth(int16_t *buffer, int period_size) {
 
 
 int main(int argc, char *argv[]) {
-    char devicename[1024] = "default";
+    char devicename[1024] = DEFAULT_DEVICE;
     if (argc > 1) {
         if (argv[1][0] == '-') {
             switch(argv[1][1]) {
