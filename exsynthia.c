@@ -27,60 +27,6 @@
 
 #define VOICES (24)
 
-// DDS structure
-typedef struct {
-    double base;
-    uint64_t phase_accumulator;
-    int32_t phase_increment;
-    uint32_t size;
-    int32_t phase_increment_divisor;
-    int16_t *w;
-    char oneshot;
-    char active;
-} DDS;
-
-DDS dds[VOICES];
-
-// Q17.15
-#define DDS_FRAC_BITS (15)
-#define DDS_SCALE (1 << DDS_FRAC_BITS)
-
-void dds_freq(int i, double f) {
-    if (dds[i].base > 0) {
-        // how to adjust for the real base...
-        f = (f / dds[i].base) * 0.32874; // the magic number is magic... i found it via experimentation but need to learn what it means
-    }
-    dds[i].phase_increment = (int32_t)((f * dds[i].size) / SAMPLE_RATE * DDS_SCALE);
-}
-
-void dds_init(int i, uint32_t size, double f, int16_t *w, int n) {
-    dds[i].phase_accumulator = 0;
-    dds[i].size = size;
-    dds[i].phase_increment_divisor = SAMPLE_RATE * DDS_SCALE;
-    dds[i].w = w;
-    dds[i].base = 0;
-    dds_freq(i, f);
-}
-
-int16_t dds_next(int i) {
-    if (dds[i].size == 0) return 0;
-    if (dds[i].active == 0) {
-        dds[i].phase_accumulator = 0;
-        return 0;
-    }
-    uint32_t index = dds[i].phase_accumulator >> DDS_FRAC_BITS;
-    if (dds[i].oneshot) {
-        if (index > dds[i].size) {
-            dds[i].phase_accumulator = 0;
-            dds[i].active = 0;
-            return 0;
-        }
-    }
-    int16_t sample = dds[i].w[index % dds[i].size];
-    dds[i].phase_accumulator += dds[i].phase_increment;
-    return sample;
-}
-
 int16_t pwave_sin[CYCLE_SIZE];
 int16_t pwave_sqr[CYCLE_SIZE];
 int16_t pwave_sawd[CYCLE_SIZE];
@@ -236,36 +182,33 @@ int op[VOICES];
 int zintp[VOICES];
 
 #define EXS_WAVE(voice) exvoice[voice][EXWAVE].i
-
 #define EXS_ISMOD(voice) exvoice[voice][EXISMOD].b
-
 #define EXS_FREQ(voice) exvoice[voice][EXFREQ].f
-
 #define EXS_FREQMOD(voice) exvoice[voice][EXFREQMOD].i
-
 #define EXS_LASTSAMPLE(voice) exvoice[voice][EXLASTSAMPLE].s
-
 #define EXS_AMP(voice) exvoice[voice][EXAMP].f
-
 #define EXS_AMPTOP(voice) exvoice[voice][EXAMPTOP].i
-
 #define EXS_AMPBOT(voice) exvoice[voice][EXAMPBOT].i
-
 #define EXS_SH(voice) exvoice[voice][EXSH].i
-
 #define EXS_SHI(voice) exvoice[voice][EXSHI].i
-
 #define EXS_SHS(voice) exvoice[voice][EXSHS].s
-
+#define EXS_FREQBASE(voice) exvoice[voice][EXFREQBASE].f
+#define EXS_FREQACC(voice) exvoice[voice][EXFREQACC].u64
+#define EXS_FREQINC(voice) exvoice[voice][EXFREQINC].i32
+#define EXS_FREQDIV(voice) exvoice[voice][EXFREQDIV].i32
+#define EXS_FREQSIZE(voice) exvoice[voice][EXFREQSIZE].u32
+#define EXS_FREQWPTR(voice) exvoice[voice][EXFREQWPTR].pi16
+#define EXS_FREQONE(voice) exvoice[voice][EXFREQONE].b
+#define EXS_FREQACTIVE(voice) exvoice[voice][EXFREQACTIVE].b
 
 enum {
     EXWAVE, // waveform index
     EXISMOD, // voice is a modulator (no direct sound)
-    EXBASE, // base freq (from DDS)
-    EXSIZE, // waveform size (from DDS)
-    EXPTR, // waveform pointer (from DDS)
-    EXONESHOT, // from DDS
-    EXACTIVE, // from DDS
+    // EXBASE, // base freq (from DDS)
+    // EXSIZE, // waveform size (from DDS)
+    // EXPTR, // waveform pointer (from DDS)
+    // EXONESHOT, // from DDS
+    // EXACTIVE, // from DDS
     //
     EXLASTSAMPLE, // last wave sample
     EXINTERP, // interpolated wave sample
@@ -276,49 +219,56 @@ enum {
     EXSHS, //
     //
     EXFREQ, // wave frequency for human
-    EXFREQAA, // wave freq fixedpoint phase accumulator u64 (from DDS)
+    EXFREQBASE, // double
+    EXFREQACC, // wave freq fixedpoint phase accumulator u64 (from DDS)
     EXFREQINC, // wave freq fixedpoint phase inc i32 (from DDS)
+    EXFREQDIV, // i32 (from DDS)
+    EXFREQSIZE, // wave size u32 (from DDS)
+    EXFREQWPTR, // *i16
+    EXFREQONE, // b
+    EXFREQACTIVE, // b
+    //
     EXFREQMOD, // mod voice
-    EXFREQMODAMT, // amount of mod
-    EXFREQGLIS, // glissando
-    EXFREQGLISD, // glissando delta
-    EXFREQGLIST, // glissando target
-    EXFREQEG, // eg source
-    EXFREQEGAMT, // amount of eg
+    // EXFREQMODAMT, // amount of mod
+    // EXFREQGLIS, // glissando
+    // EXFREQGLISD, // glissando delta
+    // EXFREQGLIST, // glissando target
+    // EXFREQEG, // eg source
+    // EXFREQEGAMT, // amount of eg
     //
     EXAMP, // amplitude for human
     EXAMPTOP, // amplitude top ratio
     EXAMPBOT, // amplitude bottom ratio
-    EXAMPMOD,
-    EXAMPMODAMT,
-    EXAMPEG,
-    EXAMPEGAMT,
+    // EXAMPMOD,
+    // EXAMPMODAMT,
+    // EXAMPEG,
+    // EXAMPEGAMT,
     //
-    EXPAN, // -1=left, 0=center, 1=right
-    EXPANMOD,
-    EXPANMODAMT,
-    EXPANEG,
-    EXPANEGAMT,
+    // EXPAN, // -1=left, 0=center, 1=right
+    // EXPANMOD,
+    // EXPANMODAMT,
+    // EXPANEG,
+    // EXPANEGAMT,
     //
-    EXFILT, // mode 0=off, 1=LPF,2=BPF,3=HPF
-    EXFILTF,
-    EXFILTQ,
-    EXFILTMOD,
-    EXFILTMODAMT,
-    EXFILTEG,
-    EXFILTEGAMT,
-    EXFILTALPHA,
-    EXFILTTAPS,
-    EXFILTTAP0,
-    EXFILTTAP1,
-    EXFILTTAP2,
-    EXFILTTAP3,
-    EXFILTTAP4,
-    EXFILTTAP5,
-    EXFILTTAP6,
-    EXFILTTAP7,
-    EXFILTTAP8,
-    EXFILTTAP9,
+    // EXFILT, // mode 0=off, 1=LPF,2=BPF,3=HPF
+    // EXFILTF,
+    // EXFILTQ,
+    // EXFILTMOD,
+    // EXFILTMODAMT,
+    // EXFILTEG,
+    // EXFILTEGAMT,
+    // EXFILTALPHA,
+    // EXFILTTAPS,
+    // EXFILTTAP0,
+    // EXFILTTAP1,
+    // EXFILTTAP2,
+    // EXFILTTAP3,
+    // EXFILTTAP4,
+    // EXFILTTAP5,
+    // EXFILTTAP6,
+    // EXFILTTAP7,
+    // EXFILTTAP8,
+    // EXFILTTAP9,
     //
     EXMAXCOLS,
 };
@@ -331,27 +281,66 @@ union ExVoice {
     char b;
     int i;
     uint64_t u64;
+    uint32_t u32;
     int64_t i64;
+    int32_t i32;
     double f;
     int16_t s;
     q248_t q248;
     q1715_t q1715_t;
     q1616_t q1616_t;
+    int16_t *pi16;
 };
 
 union ExVoice exvoice[VOICES][EXMAXCOLS];
 
+// Q17.15
+#define DDS_FRAC_BITS (15)
+#define DDS_SCALE (1 << DDS_FRAC_BITS)
+
+#define DDS_MAGIC (0.32874)
+
+void dds_freq(int voice, double f) {
+    if (EXS_FREQBASE(voice) > 0) {
+        // how to adjust for the real base...
+        f = (f / EXS_FREQBASE(voice)) * DDS_MAGIC; // the magic number is magic... i found it via experimentation but need to learn what it means
+    }
+    EXS_FREQINC(voice) = (int32_t)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
+}
+
+void dds_init(int voice, uint32_t size, double f, int16_t *w, int n) {
+    EXS_FREQACC(voice) = 0;
+    EXS_FREQSIZE(voice) = size;
+    EXS_FREQDIV(voice) = SAMPLE_RATE * DDS_SCALE;
+    EXS_FREQWPTR(voice) = w;
+    EXS_FREQBASE(voice) = 0;
+    dds_freq(voice, f);
+}
+
+int16_t dds_next(int voice) {
+    if (EXS_FREQSIZE(voice) == 0) return 0;
+    if (EXS_FREQACTIVE(voice) == 0) {
+        EXS_FREQACC(voice) = 0;
+        return 0;
+    }
+    uint32_t index = EXS_FREQACC(voice) >> DDS_FRAC_BITS;
+    if (EXS_FREQONE(voice)) {
+        if (index > EXS_FREQSIZE(voice)) {
+            EXS_FREQACC(voice) = 0;
+            EXS_FREQACTIVE(voice) = 0;
+            return 0;
+        }
+    }
+    int16_t sample = EXS_FREQWPTR(voice)[index % EXS_FREQSIZE(voice)];
+    EXS_FREQACC(voice) += EXS_FREQINC(voice);
+    return sample;
+}
+
 // LFO-ey stuff
 // TODO
-// int ismod[VOICES];
-// int cachemod[VOICES];
-// int ofm[VOICES]; // choose which oscillator is a frequency modulator
+
 // int oam[VOICES]; // choose which oscillator is a amplitude modulator
 // int opm[VOICES]; // choose which oscillator is a panning modulator
-
-// amplitude ratio... this influences the oa
-// int top[VOICES];
-// int bot[VOICES];
 
 #include "linenoise.h"
 
@@ -648,44 +637,43 @@ env_t env[VOICES];
 
 #define AFACTOR (0.025) // scaling amplitude to match what i hear from AMY
 
-void show_voice(char flag, int i, char forceshow) {
+void show_voice(char flag, int voice, char forceshow) {
     if (forceshow == 0) {
-      if (EXS_AMPTOP(i) == 0) return;
-      if (EXS_FREQ(i) == 0) return;
+      if (EXS_AMPTOP(voice) == 0) return;
+      if (EXS_FREQ(voice) == 0) return;
     }
-    printf("%c v%d w%d f%.4f a%.4f", flag, i, EXS_WAVE(i), EXS_FREQ(i), EXS_AMP(i) * (1.0 / AFACTOR));
-    if (exvoice[i][EXINTERP].b) printf(" Z1");
-    if (EXS_ISMOD(i)) printf(" M%d", EXS_ISMOD(i));
-    if (EXS_FREQMOD(i) >= 0) printf(" F%d", EXS_FREQMOD(i));
-    if (oe[i]) printf(" e%d B%d,%d,%d,%d,%d", oe[i],
-        env[i].attack_ms,
-        env[i].decay_ms,
-        env[i].release_ms,
-        env[i].attack_level,
-        env[i].sustain_level);
-    if (EXS_SH(i)) printf(" d%d", EXS_SH(i));
-    if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
-    if (EXS_WAVE(i) == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
+    printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
+    if (exvoice[voice][EXINTERP].b) printf(" Z1");
+    if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
+    if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
+    if (oe[voice]) printf(" e%d B%d,%d,%d,%d,%d", oe[voice],
+        env[voice].attack_ms,
+        env[voice].decay_ms,
+        env[voice].release_ms,
+        env[voice].attack_level,
+        env[voice].sustain_level);
+    if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
+    if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
+    if (EXS_WAVE(voice) == PCM) printf(" p%d b%d", op[voice], EXS_FREQONE(voice)==0);
     printf(" #");
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
-        (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
-        (double)dds[i].phase_increment / (double)DDS_SCALE,
-        dds[i].size,
-        dds[i].phase_increment_divisor >> DDS_FRAC_BITS,
-        dds[i].base);
+        (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
+        (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
+        EXS_FREQSIZE(voice),
+        EXS_FREQDIV(voice) >> DDS_FRAC_BITS,
+        EXS_FREQBASE(voice));
     puts("");
 }
 
 void update_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
-    dds[voice].w = ptr;
-    dds[voice].size = len;
-    // dds[voice].n = w;
-    dds[voice].oneshot = oneshot;
+    EXS_FREQWPTR(voice) = ptr;
+    EXS_FREQSIZE(voice) = len;
+    EXS_FREQONE(voice) = oneshot;
     if (forceactive) {
-        dds[voice].active = 1;
+        EXS_FREQACTIVE(voice) = 1;
     }
-    if (base != dds[voice].base) {
-        dds[voice].base = base;
+    if (base != EXS_FREQBASE(voice)) {
+        EXS_FREQBASE(voice) = base;
         dds_freq(voice, EXS_FREQ(voice));
     }
 }
@@ -882,7 +870,7 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'b') {
             int loop = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            dds[voice].oneshot = (loop == 0);
+            EXS_FREQONE(voice) = (loop == 0);
         } else if (c == 'p') {
             int patch = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1034,7 +1022,7 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             velocity *= 0.025;
             if (velocity <= 0.0) {
-                if (dds[voice].oneshot) dds[voice].active = 0;
+                if (EXS_FREQONE(voice)) EXS_FREQACTIVE(voice) = 0;
                 if (oe[voice]) {
                     env_off(&env[voice]);
                 } else {
@@ -1042,8 +1030,8 @@ int wire(char *line, int *thisvoice) {
                     calc_ratio(voice);
                 }
             } else if (velocity > 0.0) {
-                dds[voice].phase_accumulator = 0;
-                dds[voice].active = 1;
+                EXS_FREQACC(voice) = 0;
+                EXS_FREQACTIVE(voice) = 1;
                 EXS_AMP(voice) = velocity;
                 calc_ratio(voice);
                 env_on(&env[voice]);
@@ -1207,7 +1195,7 @@ int main(int argc, char *argv[]) {
     }
 
     user_start();
-    
+
     // out("UI");
     pthread_t user_thread;
     pthread_create(&user_thread, NULL, user, NULL);
