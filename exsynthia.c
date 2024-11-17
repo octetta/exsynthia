@@ -35,7 +35,6 @@ typedef struct {
     uint32_t size;
     int32_t phase_increment_divisor;
     int16_t *w;
-    // int n;
     char oneshot;
     char active;
 } DDS;
@@ -46,69 +45,61 @@ DDS dds[VOICES];
 #define DDS_FRAC_BITS (15)
 #define DDS_SCALE (1 << DDS_FRAC_BITS)
 
-void dds_freq(DDS *dds, double f) {
-    if (dds->base > 0) {
+void dds_freq(int i, double f) {
+    if (dds[i].base > 0) {
         // how to adjust for the real base...
-        f = (f / dds->base) * 0.32874; // the magic number is magic... i found it via experimentation but need to learn what it means
+        f = (f / dds[i].base) * 0.32874; // the magic number is magic... i found it via experimentation but need to learn what it means
     }
-    dds->phase_increment = (int32_t)((f * dds->size) / SAMPLE_RATE * DDS_SCALE);
+    dds[i].phase_increment = (int32_t)((f * dds[i].size) / SAMPLE_RATE * DDS_SCALE);
 }
 
-void dds_init(DDS *dds, uint32_t size, double f, int16_t *w, int n) {
-    dds->phase_accumulator = 0;
-    dds->size = size;
-    dds->phase_increment_divisor = SAMPLE_RATE * DDS_SCALE;
-    dds->w = w;
-    // dds->n = n;
-    dds->base = 0;
-    dds_freq(dds, f);
+void dds_init(int i, uint32_t size, double f, int16_t *w, int n) {
+    dds[i].phase_accumulator = 0;
+    dds[i].size = size;
+    dds[i].phase_increment_divisor = SAMPLE_RATE * DDS_SCALE;
+    dds[i].w = w;
+    dds[i].base = 0;
+    dds_freq(i, f);
 }
 
-// int16_t dds_step(DDS *dds, int16_t *wavetable) {
-//     if (dds->size == 0) return 0;
-//     uint32_t index = dds->phase_accumulator >> DDS_FRAC_BITS;
-//     int16_t sample = wavetable[index % dds->size];
-//     dds->phase_accumulator += dds->phase_increment;
-//     return sample;
-// }
-
-int16_t dds_next(DDS *dds) {
-    if (dds->size == 0) return 0;
-    if (dds->active == 0) {
-        dds->phase_accumulator = 0;
+int16_t dds_next(int i) {
+    if (dds[i].size == 0) return 0;
+    if (dds[i].active == 0) {
+        dds[i].phase_accumulator = 0;
         return 0;
     }
-    uint32_t index = dds->phase_accumulator >> DDS_FRAC_BITS;
-    if (dds->oneshot) {
-        if (index > dds->size) {
-            dds->phase_accumulator = 0;
-            dds->active = 0;
+    uint32_t index = dds[i].phase_accumulator >> DDS_FRAC_BITS;
+    if (dds[i].oneshot) {
+        if (index > dds[i].size) {
+            dds[i].phase_accumulator = 0;
+            dds[i].active = 0;
             return 0;
         }
     }
-    int16_t sample = dds->w[index % dds->size];
-    dds->phase_accumulator += dds->phase_increment;
+    int16_t sample = dds[i].w[index % dds[i].size];
+    dds[i].phase_accumulator += dds[i].phase_increment;
     return sample;
 }
 
+int16_t pwave_sin[CYCLE_SIZE];
+int16_t pwave_sqr[CYCLE_SIZE];
+int16_t pwave_sawd[CYCLE_SIZE];
+int16_t pwave_sawu[CYCLE_SIZE];
+int16_t pwave_tri[CYCLE_SIZE];
+int16_t pwave_noise[CYCLE_SIZE * 256];
+int16_t pwave_none[CYCLE_SIZE];
+int16_t pwave_cos[CYCLE_SIZE];
+
 #define USRWAVMAX (100)
 
-int16_t sine[CYCLE_SIZE];
-int16_t cosine[CYCLE_SIZE];
-int16_t sqr[CYCLE_SIZE];
-int16_t tri[CYCLE_SIZE];
-int16_t sawup[CYCLE_SIZE];
-int16_t sawdown[CYCLE_SIZE];
-int16_t noise[CYCLE_SIZE * 256];
-int16_t none[CYCLE_SIZE];
-int16_t *usrwav[USRWAVMAX];
-char usrnam[USRWAVMAX][32];
-int usrlen[USRWAVMAX];
+int16_t *uwave[USRWAVMAX];
+char uwave_name[USRWAVMAX][32];
+int uwave_size[USRWAVMAX];
 char usros[USRWAVMAX];
-double usrbase[USRWAVMAX];
+double uwave_freq[USRWAVMAX];
 
-#define MAX_VALUE 32767
-#define MIN_VALUE -32767
+#define MAX_VALUE (32767)
+#define MIN_VALUE (-32767)
 
 void make_sine(int16_t *table, int size) {
     for (int i = 0; i < size; i++) {
@@ -236,56 +227,71 @@ char input[1024];
 
 #define WAVE_MAX (12)
 
-double of[VOICES];
+// int ow[VOICES];
+// double of[VOICES];
 double oft[VOICES];
 int ofg[VOICES];
 double ofgd[VOICES];
 double on[VOICES];
 double oa[VOICES];
 int oe[VOICES];
-int ow[VOICES];
 int op[VOICES];
 int sh[VOICES];
 int shi[VOICES];
 int16_t shs[VOICES];
 int zintp[VOICES];
 
+// #define EXS_OW(voice) ow[voice]
+#define EXS_OW(voice) exvoice[voice][EXWAVE].i
+// #define EXS_OF(voice) of[voice]
+#define EXS_OF(voice) exvoice[voice][EXFREQ].f
+
 enum {
-    EXWAVE,
-    EXLASTSAMPLE,
-    EXINTERP,
+    EXWAVE, // waveform index
+    EXBASE, // base freq
+    EXSIZE, // waveform size
+    EXPTR, // waveform pointer
+    EXONESHOT,
+    EXACTIVE,
+    EXLASTSAMPLE, // last wave sample
+    EXINTERP, // interpolated wave sample
     //
-    EXISMOD,
+    EXISMOD, // voice is a modulator (no direct sound)
     //
-    EXSH,
-    EXSHI,
-    EXSHS,
+    EXSH, // sample and hold amount
+    EXSHI, // 
+    EXSHS, //
     //
-    EXFREQ,
-    EXFREQPHASE,
-    EXFREQINC,
-    EXMODFREQ,
-    EXMODFREQAMT,
-    EXFREQEG,
-    EXFREQEGAMT,
+    EXFREQ, // wave frequency for human
+    EXFREQAA, // wave freq fixedpoint phase accumulator u64
+    EXFREQINC, // wave freq fixedpoint phase inc i32
+    EXFREQMOD, // mod voice
+    EXFREQMODAMT, // amount of mod
+    EXFREQGLIS, // glissando
+    EXFREQGLISD, // glissando delta
+    EXFREQGLIST, // glissando target
+    EXFREQEG, // eg source
+    EXFREQEGAMT, // amount of eg
     //
-    EXAMP, // 0 -> 
-    EXMODAMP,
-    EXMODAMPAMT,
+    EXAMP, // amplitude for human
+    EXAMPTOP, // amplitude top ratio
+    EXAMPBOT, // amplitude bottom ratio
+    EXAMPMOD,
+    EXAMPMODAMT,
     EXAMPEG,
     EXAMPEGAMT,
     //
     EXPAN, // -1=left, 0=center, 1=right
-    EXMODPAN,
-    EXMODPANAMT,
+    EXPANMOD,
+    EXPANMODAMT,
     EXPANEG,
     EXPANEGAMT,
     //
     EXFILT, // mode 0=off, 1=LPF,2=BPF,3=HPF
     EXFILTF,
     EXFILTQ,
-    EXMODFILT,
-    EXMODFILTAMT,
+    EXFILTMOD,
+    EXFILTMODAMT,
     EXFILTEG,
     EXFILTEGAMT,
     EXFILTALPHA,
@@ -622,9 +628,9 @@ env_t env[VOICES];
 void show_voice(char flag, int i, char forceshow) {
     if (forceshow == 0) {
       if (top[i] == 0) return;
-      if (of[i] == 0) return;
+      if (EXS_OF(i) == 0) return;
     }
-    printf("%c v%d w%d f%.4f a%.4f", flag, i, ow[i], of[i], oa[i] * (1.0 / AFACTOR));
+    printf("%c v%d w%d f%.4f a%.4f", flag, i, EXS_OW(i), EXS_OF(i), oa[i] * (1.0 / AFACTOR));
     // printf(" t%d b%d", top[i], bot[i]);
     if (exvoice[i][EXINTERP].b) printf(" Z1");
     if (ismod[i]) printf(" M%d", ismod[i]);
@@ -637,7 +643,7 @@ void show_voice(char flag, int i, char forceshow) {
         env[i].sustain_level);
     if (sh[i]) printf(" d%d", sh[i]);
     if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
-    if (ow[i] == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
+    if (EXS_OW(i) == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
     printf(" #");
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
         (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
@@ -658,7 +664,7 @@ void update_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char force
     }
     if (base != dds[voice].base) {
         dds[voice].base = base;
-        dds_freq(&dds[voice], of[voice]);
+        dds_freq(voice, EXS_OF(voice));
     }
 }
 
@@ -687,17 +693,17 @@ int wire(char *line, int *thisvoice) {
                 int frames = mw_frames(name);
                 // printf("%s has %d frames\n", name, frames);
                 if (frames > 0) {
-                    if (usrwav[i]) {
+                    if (uwave[i]) {
                         printf("free W%d\n", i);
-                        free(usrwav[i]);
+                        free(uwave[i]);
                     }
                     int16_t *dest = malloc(frames * sizeof(int16_t));
-                    usrwav[i] = dest;
-                    usrlen[i] = frames;
+                    uwave[i] = dest;
+                    uwave_size[i] = frames;
                     usros[i] = 0;
-                    usrbase[i] = 440.0;
+                    uwave_freq[i] = 440.0;
                     int n = mw_get(name, dest, frames);
-                    strcpy(usrnam[i], name);
+                    strcpy(uwave_name[i], name);
                 }
             }
         } else if (c == ':') {
@@ -774,11 +780,11 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'S') {
             int v = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            ow[v] = SINE;
+            EXS_OW(v) = SINE;
             top[v] = 0;
             bot[v] = 0;
             ofm[v] = -1;
-            of[v] = 440;
+            EXS_OF(v) = 440;
             sh[v] = 0;
             ismod[v] = 0;
         } else if (c == 'F') {
@@ -787,7 +793,7 @@ int wire(char *line, int *thisvoice) {
             if (f < VOICES) {
                 ofm[voice] = f;
                 ismod[f] = 1;
-                exvoice[voice][EXMODFILT].i = f;
+                exvoice[voice][EXFREQMOD].i = f;
                 exvoice[f][EXISMOD].b = 1;
             }
         } else if (c == 'B') {
@@ -832,15 +838,15 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             if (f >= 0.0) {
                 if (ofg[voice] > 0) {
-                    double d = f - of[voice];
+                    double d = f - EXS_OF(voice);
                     ofgd[voice] = d / (double)ofg[voice];
                     oft[voice] = f;
                     f += d;
-                    of[voice] = f;
-                    dds_freq(&dds[voice], f);
+                    EXS_OF(voice) = f;
+                    dds_freq(voice, f);
                 } else {
-                    of[voice] = f;
-                    dds_freq(&dds[voice], f);
+                    EXS_OF(voice) = f;
+                    dds_freq(voice, f);
                 }
             }
         } else if (c == 'v') {
@@ -863,13 +869,13 @@ int wire(char *line, int *thisvoice) {
             int patch = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (patch >= 0 && patch <= 99) {
-                if (usrwav[patch] && usrlen[patch]) {
+                if (uwave[patch] && uwave_size[patch]) {
                     op[voice] = patch;
                     int active = 0;
                     update_dds_extra(
                       voice,
-                      usrwav[patch],
-                      usrlen[patch], usros[patch], active, usrbase[patch]);
+                      uwave[patch],
+                      uwave_size[patch], usros[patch], active, uwave_freq[patch]);
 #if 0
                     printf("v%d p%d ptr:%p len:%d oneshot:%d active:%d base:%f\n",
                       voice, patch, usrwav[patch], usrlen[patch], usros[patch], active, usrbase[patch]);
@@ -878,56 +884,57 @@ int wire(char *line, int *thisvoice) {
             }
         } else if (c == 'P') {
             for (int patch=0; patch<100; patch++) {
-                if (usrwav[patch] && usrlen[patch]) {
-                    printf("p%d # %s %d\n", patch, usrnam[patch], usrlen[patch]);
+                if (uwave[patch] && uwave_size[patch]) {
+                    printf("p%d # %s %d\n", patch,
+                        uwave_name[patch], uwave_size[patch]);
                 }
             }
         } else if (c == 'w') {
             int w = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (w >= 0 && w < WAVE_MAX) {
-                ow[voice] = w;
-                int16_t *ptr = none;
+                EXS_OW(voice) = w;
+                int16_t *ptr = pwave_none;
                 int len = 0;
                 double base = 0;
                 char oneshot = 0;
                 char forceactive = 0;
                 switch (w) {
                     case SINE:
-                        ptr = sine;
-                        len = sizeof(sine)/sizeof(int16_t);
+                        ptr = pwave_sin;
+                        len = sizeof(pwave_sin)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case SQR:
-                        ptr = sqr;
-                        len = sizeof(sqr)/sizeof(int16_t);
+                        ptr = pwave_sqr;
+                        len = sizeof(pwave_sqr)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case SAWD:
-                        ptr = sawdown;
-                        len = sizeof(sawdown)/sizeof(int16_t);
+                        ptr = pwave_sawd;
+                        len = sizeof(pwave_sawd)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case SAWU:
-                        ptr = sawup;
-                        len = sizeof(sawup)/sizeof(int16_t);
+                        ptr = pwave_sawu;
+                        len = sizeof(pwave_sawu)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case TRI:
-                        ptr = tri;
-                        len = sizeof(tri)/sizeof(int16_t);
+                        ptr = pwave_tri;
+                        len = sizeof(pwave_tri)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case NOIZ:
-                        ptr = noise;
-                        len = sizeof(noise)/sizeof(int16_t);
+                        ptr = pwave_noise;
+                        len = sizeof(pwave_noise)/sizeof(int16_t);
                         forceactive = 1;
                         break;
                     case USR0: // KS
                         break;
                     case PCM: // PCM (sample)
-                        ptr = usrwav[op[voice]];
-                        len = usrlen[op[voice]];
+                        ptr = uwave[op[voice]];
+                        len = uwave_size[op[voice]];
                         base = 440.0;
                         oneshot = 0;
                         break;
@@ -952,8 +959,8 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             if (note >= 0.0 && note <= 127.0) {
                 on[voice] = note;
-                of[voice] = 440.0 * pow(2.0, (note - 69.0) / 12.0);
-                dds_freq(&dds[voice], of[voice]);
+                EXS_OF(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
+                dds_freq(voice, EXS_OF(voice));
             }
         // } else if (c == 't') {
         //     int n = mytol(&line[p], &valid, &next);
@@ -984,12 +991,12 @@ int wire(char *line, int *thisvoice) {
                 p++;
                 int n = peek - '0';
                 switch (n) {
-                    case SINE: dump(sine, sizeof(sine)/sizeof(int16_t)); break;
-                    case SQR: dump(sqr, sizeof(sqr)/sizeof(int16_t)); break;
-                    case TRI: dump(tri, sizeof(tri)/sizeof(int16_t)); break;
-                    case SAWU: dump(sawup, sizeof(sawup)/sizeof(int16_t)); break;
-                    case SAWD: dump(sawdown, sizeof(sawdown)/sizeof(int16_t)); break;
-                    case NOIZ: dump(noise, sizeof(noise)/sizeof(int16_t)); break;
+                    case SINE: dump(pwave_sin, sizeof(pwave_sin)/sizeof(int16_t)); break;
+                    case SQR: dump(pwave_sqr, sizeof(pwave_sqr)/sizeof(int16_t)); break;
+                    case SAWD: dump(pwave_sawd, sizeof(pwave_sawd)/sizeof(int16_t)); break;
+                    case SAWU: dump(pwave_sawu, sizeof(pwave_sawu)/sizeof(int16_t)); break;
+                    case TRI: dump(pwave_tri, sizeof(pwave_tri)/sizeof(int16_t)); break;
+                    case NOIZ: dump(pwave_noise, sizeof(pwave_noise)/sizeof(int16_t)); break;
                     case PCM:
                     case USR0:
                     case USR1:
@@ -1005,11 +1012,11 @@ int wire(char *line, int *thisvoice) {
                 }
             } else {
                 printf("%d sine\n", SINE);
-                printf("%d sqr\n", SQR);
-                printf("%d sawd\n", SAWD);
-                printf("%d sawu\n", SAWU);
-                printf("%d tri\n", TRI);
-                printf("%d noiz\n", NOIZ);
+                printf("%d square\n", SQR);
+                printf("%d sawtoothdown\n", SAWD);
+                printf("%d sawtoothup\n", SAWU);
+                printf("%d triangle\n", TRI);
+                printf("%d noise\n", NOIZ);
                 printf("%d usr0\n", USR0);
                 printf("%d pcm\n", PCM);
                 printf("%d usr1\n", USR1);
@@ -1071,19 +1078,19 @@ void *user(void *arg) {
 }
 
 int16_t *waves[WAVE_MAX] = {
-    sine,
-    sqr,
-    sawdown,
-    sawup,
-    tri,
-    noise,
-    none,
+    pwave_sin,
+    pwave_sqr,
+    pwave_sawd,
+    pwave_sawu,
+    pwave_tri,
+    pwave_noise,
+    pwave_none,
     //
-    none,
-    none,
-    none,
-    none,
-    none,
+    pwave_none,
+    pwave_none,
+    pwave_none,
+    pwave_none,
+    pwave_none,
 };
 
 void synth(int16_t *buffer, int period_size) {
@@ -1095,13 +1102,14 @@ void synth(int16_t *buffer, int period_size) {
         // process modulators first
         for (int i=0; i<VOICES; i++) {
             cachemod[i] = 0;
-            if (ow[i] == NONE) continue;
+            if (EXS_OW(i) == NONE) continue;
             if (oa[i] == 0.0) continue;
             if (top[i] == 0 || bot[i] == 0) continue;
             if (ismod[i]) {
-                b = (dds_next(&dds[i])) * top[i] / bot[i];
+                b = (dds_next(i)) * top[i] / bot[i];
+                // b = (dds_next(&dds[i])) * top[i] / bot[i];
                 if (ofm[i] >= 0) {
-                    dds_freq(&dds[i], of[i] + (double)cachemod[ofm[i]]);
+                    dds_freq(i, EXS_OF(i) + (double)cachemod[ofm[i]]);
                 }
                 if (oe[i]) {
                     int32_t envelope_value = env_next(&env[i]);
@@ -1125,13 +1133,14 @@ void synth(int16_t *buffer, int period_size) {
         // process things that are not modulators
         for (int i=0; i<VOICES; i++) {
             if (ismod[i]) continue;
-            if (ow[i] == NONE) continue;
+            if (EXS_OW(i) == NONE) continue;
             if (oa[i] == 0.0) continue;
             if (top[i] == 0 || bot[i] == 0) continue;
             c++;
-            a = (dds_next(&dds[i])) * top[i] / bot[i];
+            a = dds_next(i) * top[i] / bot[i];
+            // a = (dds_next(&dds[i])) * top[i] / bot[i];
             if (ofm[i] >= 0) {
-                dds_freq(&dds[i], of[i] + (double)cachemod[ofm[i]]);
+                dds_freq(i, EXS_OF(i) + (double)cachemod[ofm[i]]);
             }
             if (oe[i]) {
                 int32_t envelope_value = env_next(&env[i]);
@@ -1198,31 +1207,31 @@ int main(int argc, char *argv[]) {
     printf("DDS Q%d.%d\n", 32-DDS_FRAC_BITS, DDS_FRAC_BITS);
     printf("ENV Q%d.%d\n", 32-ENV_FRAC_BITS, ENV_FRAC_BITS);
 
-    make_sine(sine, sizeof(sine)/sizeof(int16_t));
-    make_cosine(cosine, sizeof(cosine)/sizeof(int16_t));
-    make_sqr(sqr, sizeof(sqr)/sizeof(int16_t));
-    make_tri(tri, sizeof(tri)/sizeof(int16_t));
-    make_sawup(sawup, sizeof(sawup)/sizeof(int16_t));
-    make_sawdown(sawdown, sizeof(sawdown)/sizeof(int16_t));
-    make_noise(noise, sizeof(noise)/sizeof(int16_t));
-    make_none(none, sizeof(none)/sizeof(int16_t));
+    make_sine(pwave_sin, sizeof(pwave_sin)/sizeof(int16_t));
+    make_sqr(pwave_sqr, sizeof(pwave_sqr)/sizeof(int16_t));
+    make_sawdown(pwave_sawd, sizeof(pwave_sawd)/sizeof(int16_t));
+    make_sawup(pwave_sawu, sizeof(pwave_sawu)/sizeof(int16_t));
+    make_tri(pwave_tri, sizeof(pwave_tri)/sizeof(int16_t));
+    make_noise(pwave_noise, sizeof(pwave_noise)/sizeof(int16_t));
+    make_none(pwave_none, sizeof(pwave_none)/sizeof(int16_t));
+    make_cosine(pwave_cos, sizeof(pwave_cos)/sizeof(int16_t));
 
     printf("PCM patches %d\n", USRWAVMAX);
     for (int i=0; i<USRWAVMAX; i++) {
-        usrwav[i] = NULL;
-        usrlen[i] = 0;
-        usrnam[i][0] = '\0';
+        uwave[i] = NULL;
+        uwave_size[i] = 0;
+        uwave_name[i][0] = '\0';
     }
 
     printf("voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {
-        of[i] = 440.0;
+        EXS_OF(i) = 440.0;
         ofm[i] = -1;
         ismod[i] = 0;
-        ow[i] = SINE;
+        EXS_OW(i) = SINE;
         sh[i] = 0;
         shi[i] = 0;
-        dds_init(&dds[i], sizeof(sine)/sizeof(int16_t), of[i], sine, i);
+        dds_init(i, sizeof(pwave_sin)/sizeof(int16_t), EXS_OF(i), pwave_sin, i);
         oa[i] = 0;
         calc_ratio(i);
     }
