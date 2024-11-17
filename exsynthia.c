@@ -22,26 +22,33 @@
 
 #include <sys/time.h>
 
-#define CYCLE_SIZE (SAMPLE_RATE * 1)
+#define CYCLE_1HZ (SAMPLE_RATE * 1)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
 #define VOICES (24)
 
-int16_t pwave_sin[CYCLE_SIZE];
-int16_t pwave_sqr[CYCLE_SIZE];
-int16_t pwave_sawd[CYCLE_SIZE];
-int16_t pwave_sawu[CYCLE_SIZE];
-int16_t pwave_tri[CYCLE_SIZE];
-int16_t pwave_noise[CYCLE_SIZE * 256];
-int16_t pwave_none[CYCLE_SIZE];
-int16_t pwave_cos[CYCLE_SIZE];
+#define PWAVEMAX (12)
+
+int16_t *pwave[PWAVEMAX];
+char pwave_name[PWAVEMAX][32];
+int pwave_size[PWAVEMAX];
+double pwave_freq[PWAVEMAX];
+
+int16_t pwave_sin[CYCLE_1HZ];
+int16_t pwave_sqr[CYCLE_1HZ];
+int16_t pwave_sawd[CYCLE_1HZ];
+int16_t pwave_sawu[CYCLE_1HZ];
+int16_t pwave_tri[CYCLE_1HZ];
+int16_t pwave_noise[CYCLE_1HZ * 256];
+int16_t pwave_none[CYCLE_1HZ];
+int16_t pwave_cos[CYCLE_1HZ];
 
 #define USRWAVMAX (100)
 
 int16_t *uwave[USRWAVMAX];
 char uwave_name[USRWAVMAX][32];
 int uwave_size[USRWAVMAX];
-char usros[USRWAVMAX];
+char uwave_one[USRWAVMAX];
 double uwave_freq[USRWAVMAX];
 
 #define MAX_VALUE (32767)
@@ -171,15 +178,13 @@ char input[1024];
 #endif
 
 
-#define WAVE_MAX (12)
 
 double oft[VOICES];
 int ofg[VOICES];
 double ofgd[VOICES];
-double on[VOICES];
+// double on[VOICES];
 int oe[VOICES];
-int op[VOICES];
-int zintp[VOICES];
+// int op[VOICES];
 
 #define EXS_WAVE(voice) exvoice[voice][EXWAVE].i
 #define EXS_ISMOD(voice) exvoice[voice][EXISMOD].b
@@ -200,10 +205,16 @@ int zintp[VOICES];
 #define EXS_FREQWPTR(voice) exvoice[voice][EXFREQWPTR].pi16
 #define EXS_FREQONE(voice) exvoice[voice][EXFREQONE].b
 #define EXS_FREQACTIVE(voice) exvoice[voice][EXFREQACTIVE].b
+#define EXS_INTERP(voice) exvoice[voice][EXINTERP].b
+#define EXS_NOTE(voice) exvoice[voice][EXNOTE].f
+#define EXS_PATCH(voice) exvoice[voice][EXPATCH].i
+
 
 enum {
     EXWAVE, // waveform index
     EXISMOD, // voice is a modulator (no direct sound)
+    EXNOTE, // midi note number double
+    EXPATCH, // user wave patch # int
     // EXBASE, // base freq (from DDS)
     // EXSIZE, // waveform size (from DDS)
     // EXPTR, // waveform pointer (from DDS)
@@ -334,6 +345,31 @@ int16_t dds_next(int voice) {
     int16_t sample = EXS_FREQWPTR(voice)[index % EXS_FREQSIZE(voice)];
     EXS_FREQACC(voice) += EXS_FREQINC(voice);
     return sample;
+}
+
+void new_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
+    // this is a mess... needs thinking and fixing
+    EXS_FREQWPTR(voice) = ptr;
+    EXS_FREQSIZE(voice) = len;
+    EXS_FREQONE(voice) = oneshot;
+    EXS_FREQACTIVE(voice) = forceactive;
+    if (base != EXS_FREQBASE(voice)) {
+        EXS_FREQBASE(voice) = base;
+        dds_freq(voice, EXS_FREQ(voice));
+    }
+}
+
+void dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
+    EXS_FREQWPTR(voice) = ptr;
+    EXS_FREQSIZE(voice) = len;
+    EXS_FREQONE(voice) = oneshot;
+    if (forceactive) {
+        EXS_FREQACTIVE(voice) = 1;
+    }
+    if (base != EXS_FREQBASE(voice)) {
+        EXS_FREQBASE(voice) = base;
+        dds_freq(voice, EXS_FREQ(voice));
+    }
 }
 
 // LFO-ey stuff
@@ -643,7 +679,7 @@ void show_voice(char flag, int voice, char forceshow) {
       if (EXS_FREQ(voice) == 0) return;
     }
     printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
-    if (exvoice[voice][EXINTERP].b) printf(" Z1");
+    if (EXS_INTERP(voice)) printf(" Z1");
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
     if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
     if (oe[voice]) printf(" e%d B%d,%d,%d,%d,%d", oe[voice],
@@ -654,7 +690,7 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].sustain_level);
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
     if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
-    if (EXS_WAVE(voice) == PCM) printf(" p%d b%d", op[voice], EXS_FREQONE(voice)==0);
+    if (EXS_WAVE(voice) == PCM) printf(" p%d b%d", EXS_PATCH(voice), EXS_FREQONE(voice)==0);
     printf(" #");
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
         (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
@@ -663,19 +699,6 @@ void show_voice(char flag, int voice, char forceshow) {
         EXS_FREQDIV(voice) >> DDS_FRAC_BITS,
         EXS_FREQBASE(voice));
     puts("");
-}
-
-void update_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
-    EXS_FREQWPTR(voice) = ptr;
-    EXS_FREQSIZE(voice) = len;
-    EXS_FREQONE(voice) = oneshot;
-    if (forceactive) {
-        EXS_FREQACTIVE(voice) = 1;
-    }
-    if (base != EXS_FREQBASE(voice)) {
-        EXS_FREQBASE(voice) = base;
-        dds_freq(voice, EXS_FREQ(voice));
-    }
 }
 
 int wire(char *line, int *thisvoice) {
@@ -710,7 +733,7 @@ int wire(char *line, int *thisvoice) {
                     int16_t *dest = malloc(frames * sizeof(int16_t));
                     uwave[i] = dest;
                     uwave_size[i] = frames;
-                    usros[i] = 0;
+                    uwave_one[i] = 0;
                     uwave_freq[i] = 440.0;
                     int n = mw_get(name, dest, frames);
                     strcpy(uwave_name[i], name);
@@ -772,7 +795,7 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'Z') {
             int z = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            exvoice[voice][EXINTERP].b = z;
+            EXS_INTERP(voice) = z;
         } else if (c == 'd') {
             int d = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -876,15 +899,15 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             if (patch >= 0 && patch <= 99) {
                 if (uwave[patch] && uwave_size[patch]) {
-                    op[voice] = patch;
+                    EXS_PATCH(voice) = patch;
                     int active = 0;
-                    update_dds_extra(
+                    dds_extra(
                       voice,
                       uwave[patch],
-                      uwave_size[patch], usros[patch], active, uwave_freq[patch]);
-#if 0
+                      uwave_size[patch], uwave_one[patch], active, uwave_freq[patch]);
+#if 1
                     printf("v%d p%d ptr:%p len:%d oneshot:%d active:%d base:%f\n",
-                      voice, patch, usrwav[patch], usrlen[patch], usros[patch], active, usrbase[patch]);
+                      voice, patch, uwave[patch], uwave_size[patch], uwave_one[patch], active, uwave_freq[patch]);
 #endif
                 }
             }
@@ -898,7 +921,7 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'w') {
             int w = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            if (w >= 0 && w < WAVE_MAX) {
+            if (w >= 0 && w < PWAVEMAX) {
                 EXS_WAVE(voice) = w;
                 int16_t *ptr = pwave_none;
                 int len = 0;
@@ -939,8 +962,8 @@ int wire(char *line, int *thisvoice) {
                     case USR0: // KS
                         break;
                     case PCM: // PCM (sample)
-                        ptr = uwave[op[voice]];
-                        len = uwave_size[op[voice]];
+                        ptr = uwave[EXS_PATCH(voice)];
+                        len = uwave_size[EXS_PATCH(voice)];
                         base = 440.0;
                         oneshot = 0;
                         break;
@@ -954,17 +977,17 @@ int wire(char *line, int *thisvoice) {
                         puts("UNEXPECTED");
                         break;
                 }
-#if 0
+#if 1
                 printf("v%d ptr:%p len:%d oneshot:%d active:%d base:%f\n", voice, ptr, len, oneshot, forceactive, base);
 #endif
-                update_dds_extra(voice, ptr, len, oneshot, forceactive, base);
+                dds_extra(voice, ptr, len, oneshot, forceactive, base);
             }
         
         } else if (c == 'n') {
             double note = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (note >= 0.0 && note <= 127.0) {
-                on[voice] = note;
+                EXS_NOTE(voice) = note;
                 EXS_FREQ(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
                 dds_freq(voice, EXS_FREQ(voice));
             }
@@ -1012,7 +1035,7 @@ int wire(char *line, int *thisvoice) {
                 printf("%d usr1\n", USR1);
                 printf("%d usr2\n", USR2);
                 printf("%d usr3\n", USR3);
-                // for (int i=NOIZ+1; i<WAVE_MAX-1; i++) {
+                // for (int i=NOIZ+1; i<PWAVEMAX-1; i++) {
                 //     int n = i-NOIZ-1;
                 //     printf("%d usr%d (%s/%d)\n", i, n, usrnam[n], usrlen[n]);
                 // }
@@ -1067,7 +1090,7 @@ void *user(void *arg) {
     return NULL;
 }
 
-int16_t *waves[WAVE_MAX] = {
+int16_t *waves[PWAVEMAX] = {
     pwave_sin,
     pwave_sqr,
     pwave_sawd,
@@ -1088,7 +1111,6 @@ void engine(int16_t *buffer, int period_size) {
     // TODO process EGs here
     for (int n = 0; n < period_size; n++) {
         buffer[n] = 0;
-        // process modulators first
         for (int i=0; i<VOICES; i++) {
             EXS_LASTSAMPLE(i) = 0;
             if (EXS_WAVE(i) == NONE) continue;
