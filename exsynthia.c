@@ -305,6 +305,36 @@ union ExVoice {
 
 union ExVoice exvoice[VOICES][EXMAXCOLS];
 
+// inspired by AMY :)
+#define SINE 0
+#define SQR  1
+#define SAWD 2
+#define SAWU 3
+#define TRI  4
+#define NOIZ 5
+#define USR0 6
+#define PCM 7
+#define USR1 8
+#define USR2 9
+#define USR3 10
+#define NONE 11
+
+enum {
+    EXWAVESINE,
+    EXWAVESQR,
+    EXWAVESAWDN,
+    EXWAVESAWUP,
+    EXWAVETRI,
+    EXWAVENOISE,
+    EXWAVEUSR0,
+    EXWAVEPCM,
+    EXWAVEUSR1,
+    EXWAVEUSR2,
+    EXWAVEUSR3,
+    EXWAVENONE,
+    EXWAVMAX,
+};
+
 // Q17.15
 #define DDS_FRAC_BITS (15)
 #define DDS_SCALE (1 << DDS_FRAC_BITS)
@@ -359,12 +389,27 @@ void new_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceact
     }
 }
 
-void dds_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
+void dds_extra(int voice, int16_t *ptr, int len, char oneshot, char active, double base) {
+    if (!ptr) return;
+    if (!len) return;
     EXS_FREQWPTR(voice) = ptr;
     EXS_FREQSIZE(voice) = len;
     EXS_FREQONE(voice) = oneshot;
-    if (forceactive) {
+    if (active) {
         EXS_FREQACTIVE(voice) = 1;
+    }
+    int wave = EXS_WAVE(voice);
+    if (wave == PCM) {
+        int patch = EXS_PATCH(voice);
+        printf("v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
+            voice,
+            wave,
+            patch,
+            uwave[patch],
+            uwave_size[patch],
+            uwave_one[patch],
+            active,
+            uwave_freq[patch]);
     }
     if (base != EXS_FREQBASE(voice)) {
         EXS_FREQBASE(voice) = base;
@@ -489,35 +534,7 @@ void *etf(void *arg) {
     return NULL;
 }
 
-// inspired by AMY :)
-#define SINE 0
-#define SQR  1
-#define SAWD 2
-#define SAWU 3
-#define TRI  4
-#define NOIZ 5
-#define USR0 6
-#define PCM 7
-#define USR1 8
-#define USR2 9
-#define USR3 10
-#define NONE 11
 
-enum {
-    EXWAVESINE,
-    EXWAVESQR,
-    EXWAVESAWDN,
-    EXWAVESAWUP,
-    EXWAVETRI,
-    EXWAVENOISE,
-    EXWAVEUSR0,
-    EXWAVEPCM,
-    EXWAVEUSR1,
-    EXWAVEUSR2,
-    EXWAVEUSR3,
-    EXWAVENONE,
-    EXWAVMAX,
-};
 
 void dump(int16_t *wave, int len) {
     int c = 0;
@@ -905,10 +922,6 @@ int wire(char *line, int *thisvoice) {
                       voice,
                       uwave[patch],
                       uwave_size[patch], uwave_one[patch], active, uwave_freq[patch]);
-#if 1
-                    printf("v%d p%d ptr:%p len:%d oneshot:%d active:%d base:%f\n",
-                      voice, patch, uwave[patch], uwave_size[patch], uwave_one[patch], active, uwave_freq[patch]);
-#endif
                 }
             }
         } else if (c == 'P') {
@@ -921,7 +934,7 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'w') {
             int w = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            if (w >= 0 && w < PWAVEMAX) {
+            if (w != EXS_WAVE(voice) && w >= 0 && w < PWAVEMAX) {
                 EXS_WAVE(voice) = w;
                 int16_t *ptr = pwave_none;
                 int len = 0;
@@ -965,7 +978,7 @@ int wire(char *line, int *thisvoice) {
                         ptr = uwave[EXS_PATCH(voice)];
                         len = uwave_size[EXS_PATCH(voice)];
                         base = 440.0;
-                        oneshot = 0;
+                        oneshot = uwave_one[EXS_PATCH(voice)];
                         break;
                     case USR1: // algo
                         break;
@@ -977,9 +990,6 @@ int wire(char *line, int *thisvoice) {
                         puts("UNEXPECTED");
                         break;
                 }
-#if 1
-                printf("v%d ptr:%p len:%d oneshot:%d active:%d base:%f\n", voice, ptr, len, oneshot, forceactive, base);
-#endif
                 dds_extra(voice, ptr, len, oneshot, forceactive, base);
             }
         
