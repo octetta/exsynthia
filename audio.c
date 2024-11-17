@@ -19,6 +19,8 @@ static int audio_buffer_len = 1024;
 static int16_t *audio_buffer = NULL;
 static int audio_sample_rate = 44100;
 
+static int audio_is_running = 0;
+
 #define TV2MS(t) ((t.tv_sec*1000)+(t.tv_usec/1000))
 
 // ---------------
@@ -104,30 +106,34 @@ static int MA_audio_list(char *what, char *filter) {
   char output = 0;
   if (filter == NULL) output = 1;
   if (filter && filter[0] == '\0') output = 1;
-  if (output) puts("playback devices");
   char name[1024];
   char lfilter[1024];
   if (!output) {
     strcpy(lfilter, filter);
     strlower(lfilter);
   }
-  for (i=0; i<playbackCount; i++) {
-    strcpy(name, pPlaybackInfos[i].name);
-    strlower(name);
-    if (output) printf("%d <%s>\n", i, name);
-    if (!output) {
-        char *needle = lfilter;
-        char *haystack = name;
-        if (strstr(haystack, needle)) {
-            // printf("<%s> found in <%s> -> %d\n", needle, haystack, i);
-            return i;
+  if (what && what[0] == 'p') {
+    if (output) puts("playback devices");
+    for (i=0; i<playbackCount; i++) {
+        strcpy(name, pPlaybackInfos[i].name);
+        strlower(name);
+        if (output) printf("%d <%s>\n", i, name);
+        if (!output) {
+            char *needle = lfilter;
+            char *haystack = name;
+            if (strstr(haystack, needle)) {
+                // printf("<%s> found in <%s> -> %d\n", needle, haystack, i);
+                return i;
+            }
         }
     }
   }
 
-  if (output) puts("capture devices");
-  for (i=0; i<captureCount; i++) {
-    if (output) printf("%d : %s\n", i, pCaptureInfos[i].name);
+  if (what && what[0] == 'c') {
+    if (output) puts("capture devices");
+    for (i=0; i<captureCount; i++) {
+        if (output) printf("%d : %s\n", i, pCaptureInfos[i].name);
+    }
   }
   return 1000;
 }
@@ -154,7 +160,7 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
     }
 }
 
-static int MA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
+static int MA_audio_start(void (*fn)(int16_t*,int)) {
     audio_fn = fn;
     return 0;
 }
@@ -313,10 +319,11 @@ void ALSA_audio_close(void) {
   snd_pcm_close(pcm_handle);
 }
 
-static int ALSA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
+static int ALSA_audio_start(void (*fn)(int16_t*,int)) {
     int16_t *buffer = audio_buffer;
+    audio_is_running = 1;
     int err;
-    while (*flag) {
+    while (audio_is_running) {
         fn(buffer, audio_buffer_len);
 
         if ((err = snd_pcm_wait(pcm_handle, 1000)) < 0) {
@@ -348,6 +355,9 @@ static int ALSA_audio_main(int *flag, void (*fn)(int16_t*,int)) {
 
 static int ALSA_audio_list(char *what, char *filter) {
     int status;
+    if (what && what[0] == 'p') {
+        what == "pcm";
+    }
     char *kind = strdup(what);
     char **hints;
     status = snd_device_name_hint(-1, kind, (void ***)&hints);
@@ -363,12 +373,17 @@ static int ALSA_audio_list(char *what, char *filter) {
         }
         snd_device_name_free_hint((void **)hints);
     }
+    free(kind);
     return 0;
 }
 
 #endif
 
 // -----------
+
+int audio_running(void) {
+    return audio_is_running;
+}
 
 int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   audio_buffer_len = buffer_len;
@@ -378,17 +393,22 @@ int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   puts("using raw ALSA");
   return ALSA_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #else
-  puts("using miniaudio : https://miniaud.io");
+  printf("using miniaudio %s from https://miniaud.io\n", MA_VERSION_STRING);
   return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #endif
 }
 
-int audio_main(int *flag, void (*fn)(int16_t*,int)) {
+int audio_start(void (*fn)(int16_t*,int)) {
+  audio_is_running = 1;
   #ifdef USE_ALSA
-  return ALSA_audio_main(flag, fn);
+  return ALSA_audio_start(fn);
   #else
-  return MA_audio_main(flag, fn);
+  return MA_audio_start(fn);
   #endif
+}
+
+int audio_stop(void) {
+    audio_is_running = 0;
 }
 
 int audio_list(char *what, char *filter) {

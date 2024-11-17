@@ -17,12 +17,13 @@
 
 #include <pthread.h>
 
+#include "minietf.h"
 #include "miniwav.h"
 
 #include <sys/time.h>
 
 #define CYCLE_SIZE (SAMPLE_RATE * 1)
-#define BUFFER_SIZE (2048)  // Number of samples per ALSA period
+#define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
 #define VOICES (24)
 
@@ -233,8 +234,6 @@ char input[1024];
 #endif
 
 
-int running = 1;
-
 #define WAVE_MAX (12)
 
 double of[VOICES];
@@ -405,9 +404,32 @@ char *mytok(char *str, char tok, int *next) {
 
 char device[1024] = DEFAULT_DEVICE;
 
-void *midi(void *arg) {
-    while (running) {
-        // out("MIDI");
+static int control_running = 1;
+
+int etf_fdin = -1;
+int etf_fdout = -1;
+
+void *etf(void *arg) {
+    int voice = 0;
+    struct etf_tuple tuple;
+    while (control_running) {
+        if (etf_fdin < 0 || etf_fdout < 0) {
+            // puts("NO");
+            sleep(1);
+            continue;
+        }
+        int n = etf_parse(etf_fdin, &tuple);
+        if (n == etf_read_okay) {
+            if (tuple.count == 0) {
+                puts("{}");
+            } else if (strcmp(tuple.key, "wire") == 0) {
+                //int r = wire(line, &voice);
+                if (tuple.type == etf_list) {
+                    printf("LIST[%d]\n", tuple.len);
+                }
+            }
+        }
+        // out("ETF");
         sleep(1);
     }
     return NULL;
@@ -440,6 +462,7 @@ enum {
     EXWAVEUSR2,
     EXWAVEUSR3,
     EXWAVENONE,
+    EXWAVMAX,
 };
 
 void dump(int16_t *wave, int len) {
@@ -594,27 +617,6 @@ int16_t env_next(env_t* env) {
 
 env_t env[VOICES];
 
-// long long int total_cpu_usage(void) {
-//     long long int t;
-//     FILE *f = fopen("/proc/stat", "rt");
-//     if (f) {
-//         char buf[1024];
-//         char *line = fgets(buf, sizeof(buf), f);
-//         if (line) {
-//             long long int user;
-//             long long int nice;
-//             long long int system;
-//             long long int idle;
-//             int n = sscanf(line, "%*s %llu %llu %llu %llu", &user, &nice, &system, &idle);
-//             // printf("n:%d %llu %llu %llu %llu\n", n, user, nice, system, idle);
-//             t = user + nice + system + idle;
-//         }
-//         fclose(f);
-//         return t;
-//     }
-//     return t;
-// }
-
 #define AFACTOR (0.025)
 
 void show_voice(char flag, int i, char forceshow) {
@@ -700,14 +702,29 @@ int wire(char *line, int *thisvoice) {
             }
         } else if (c == ':') {
             char peek = line[p];
-            if (peek == 'c') {
-                p++;
-                printf("%c[2J%c[H\n", 27, 27);
-            } else if (peek == 'q') {
-                p++;
-                puts("");
-                running = 0;
-                return -1;
+            switch (peek) {
+                case 'c':
+                    p++;
+                    printf("%c[2J%c[H\n", 27, 27);
+                    break;
+                case 'q':
+                    p++;
+                    puts("");
+                    control_running = 0;
+                    return -1;
+                    break;
+                case 'l':
+                    audio_list("pcm", "");
+                    p++;
+                    break;
+                case 'r':
+                    puts("RUN");
+                    p++;
+                    break;
+                case 's':
+                    puts("STOP");
+                    p++;
+                    break;
             }
         } else if (c == '~') {
             // sleep n ms
@@ -1049,7 +1066,7 @@ void *user(void *arg) {
         linenoiseFree(line);
     }
     linenoiseHistorySave(HISTORY_FILE);
-    running = 0;
+    control_running = 0;
     return NULL;
 }
 
@@ -1149,12 +1166,12 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         if (argv[1][0] == '-') {
             switch(argv[1][1]) {
-            case 'l':
+            case 'o':
                 audio_list("pcm", "");
                 return 0;
-            case 'm':
-                audio_list("rawmidi", "");
-                return 0;
+            // case 'm':
+            //     audio_list("rawmidi", "");
+            //     return 0;
             case 'd':
                 strcpy(devicename, &argv[1][2]);
                 break;
@@ -1224,10 +1241,10 @@ int main(int argc, char *argv[]) {
     pthread_create(&user_thread, NULL, user, NULL);
     pthread_detach(user_thread);
 
-    // out("MIDI");
-    pthread_t midi_thread;
-    pthread_create(&midi_thread, NULL, midi, NULL);
-    pthread_detach(midi_thread);
+    // out("ETF");
+    pthread_t etf_thread;
+    pthread_create(&etf_thread, NULL, etf, NULL);
+    pthread_detach(etf_thread);
 
     gettimeofday(&rtns0, NULL);
     fflush(stdout);
@@ -1238,15 +1255,15 @@ int main(int argc, char *argv[]) {
     if (audio_open(device, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
         out("WTF?");
     } else {
-      audio_main(&running, synth);
-      while (running) {
+      audio_start(synth);
+      while (audio_running() && control_running) {
         sleep(1);
       }
       audio_close();
     }
 
     pthread_join(user_thread, NULL);
-    pthread_join(midi_thread, NULL);
+    pthread_join(etf_thread, NULL);
 
     return 0;
 }

@@ -7,7 +7,9 @@ all: $(TARGETS)
 MYLIBS = \
 linenoise.o \
 audio.o \
-miniwav.o
+miniwav.o \
+minietf.o \
+#
 
 LIBS = \
 -lm \
@@ -17,6 +19,9 @@ LIBS = \
 ifeq ($(shell uname), Linux)
 LIBS += -lasound
 endif
+
+minietf.o : minietf.c minietf.h
+	gcc -c minietf.c
 
 miniwav.o : miniwav.c miniwav.h
 	gcc -c miniwav.c
