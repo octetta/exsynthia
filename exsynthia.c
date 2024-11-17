@@ -421,7 +421,19 @@ char *mytok(char *str, char tok, int *next) {
 
 char device[1024] = DEFAULT_DEVICE;
 
-static int control_running = 1;
+static int _user_running = 1;
+
+int user_running(void) {
+    return _user_running;
+}
+
+void user_start(void) {
+    _user_running = 1;
+}
+
+void user_stop(void) {
+    _user_running = 0;
+}
 
 int etf_fdin = -1;
 int etf_fdout = -1;
@@ -429,7 +441,7 @@ int etf_fdout = -1;
 void *etf(void *arg) {
     int voice = 0;
     struct etf_tuple tuple;
-    while (control_running) {
+    while (user_running()) {
         if (etf_fdin < 0 || etf_fdout < 0) {
             // puts("NO");
             sleep(1);
@@ -726,7 +738,7 @@ int wire(char *line, int *thisvoice) {
                 case 'q':
                     p++;
                     puts("");
-                    control_running = 0;
+                    user_stop();
                     return -1;
                     break;
                 case 'l':
@@ -1063,7 +1075,7 @@ void *user(void *arg) {
         linenoiseFree(line);
     }
     linenoiseHistorySave(HISTORY_FILE);
-    control_running = 0;
+    user_stop();
     return NULL;
 }
 
@@ -1194,6 +1206,8 @@ int main(int argc, char *argv[]) {
             ENV_SCALE, (ENV_SCALE * 7) / 10);
     }
 
+    user_start();
+    
     // out("UI");
     pthread_t user_thread;
     pthread_create(&user_thread, NULL, user, NULL);
@@ -1214,7 +1228,7 @@ int main(int argc, char *argv[]) {
         out("WTF?");
     } else {
       audio_start(engine);
-      while (audio_running() && control_running) {
+      while (audio_running() && user_running()) {
         sleep(1);
       }
       audio_close();
