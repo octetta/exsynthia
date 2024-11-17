@@ -227,27 +227,36 @@ char input[1024];
 
 #define WAVE_MAX (12)
 
-// int ow[VOICES];
-// double of[VOICES];
 double oft[VOICES];
 int ofg[VOICES];
 double ofgd[VOICES];
 double on[VOICES];
-double oa[VOICES];
 int oe[VOICES];
 int op[VOICES];
-int sh[VOICES];
-int shi[VOICES];
-int16_t shs[VOICES];
 int zintp[VOICES];
 
-// #define EXS_OW(voice) ow[voice]
-#define EXS_OW(voice) exvoice[voice][EXWAVE].i
-// #define EXS_OF(voice) of[voice]
-#define EXS_OF(voice) exvoice[voice][EXFREQ].f
+#define EXS_WAVE(voice) exvoice[voice][EXWAVE].i
 
-// #define EXS_OFM(voice) ofm[voice]
-#define EXS_OFM(voice) exvoice[voice][EXFREQMOD].i
+#define EXS_ISMOD(voice) exvoice[voice][EXISMOD].b
+
+#define EXS_FREQ(voice) exvoice[voice][EXFREQ].f
+
+#define EXS_FREQMOD(voice) exvoice[voice][EXFREQMOD].i
+
+#define EXS_LASTSAMPLE(voice) exvoice[voice][EXLASTSAMPLE].s
+
+#define EXS_AMP(voice) exvoice[voice][EXAMP].f
+
+#define EXS_AMPTOP(voice) exvoice[voice][EXAMPTOP].i
+
+#define EXS_AMPBOT(voice) exvoice[voice][EXAMPBOT].i
+
+#define EXS_SH(voice) exvoice[voice][EXSH].i
+
+#define EXS_SHI(voice) exvoice[voice][EXSHI].i
+
+#define EXS_SHS(voice) exvoice[voice][EXSHS].s
+
 
 enum {
     EXWAVE, // waveform index
@@ -334,15 +343,15 @@ union ExVoice exvoice[VOICES][EXMAXCOLS];
 
 // LFO-ey stuff
 // TODO
-int ismod[VOICES];
-int cachemod[VOICES];
+// int ismod[VOICES];
+// int cachemod[VOICES];
 // int ofm[VOICES]; // choose which oscillator is a frequency modulator
 // int oam[VOICES]; // choose which oscillator is a amplitude modulator
 // int opm[VOICES]; // choose which oscillator is a panning modulator
 
 // amplitude ratio... this influences the oa
-int top[VOICES];
-int bot[VOICES];
+// int top[VOICES];
+// int bot[VOICES];
 
 #include "linenoise.h"
 
@@ -357,10 +366,10 @@ int agcd(int a, int b) {
 
 void calc_ratio(int index) {
     int precision = 10000;
-    int ip = oa[index] * precision;
+    int ip = EXS_AMP(index) * precision;
     int gcd = agcd(abs(ip), precision);
-    top[index] = ip / gcd;
-    bot[index] = precision / gcd;
+    EXS_AMPTOP(index) = ip / gcd;
+    EXS_AMPBOT(index) = precision / gcd;
 }
 
 long mytol(char *str, int *valid, int *next) {
@@ -625,27 +634,26 @@ int16_t env_next(env_t* env) {
 
 env_t env[VOICES];
 
-#define AFACTOR (0.025)
+#define AFACTOR (0.025) // scaling amplitude to match what i hear from AMY
 
 void show_voice(char flag, int i, char forceshow) {
     if (forceshow == 0) {
-      if (top[i] == 0) return;
-      if (EXS_OF(i) == 0) return;
+      if (EXS_AMPTOP(i) == 0) return;
+      if (EXS_FREQ(i) == 0) return;
     }
-    printf("%c v%d w%d f%.4f a%.4f", flag, i, EXS_OW(i), EXS_OF(i), oa[i] * (1.0 / AFACTOR));
-    // printf(" t%d b%d", top[i], bot[i]);
+    printf("%c v%d w%d f%.4f a%.4f", flag, i, EXS_WAVE(i), EXS_FREQ(i), EXS_AMP(i) * (1.0 / AFACTOR));
     if (exvoice[i][EXINTERP].b) printf(" Z1");
-    if (ismod[i]) printf(" M%d", ismod[i]);
-    if (EXS_OFM(i) >= 0) printf(" F%d", EXS_OFM(i));
+    if (EXS_ISMOD(i)) printf(" M%d", EXS_ISMOD(i));
+    if (EXS_FREQMOD(i) >= 0) printf(" F%d", EXS_FREQMOD(i));
     if (oe[i]) printf(" e%d B%d,%d,%d,%d,%d", oe[i],
         env[i].attack_ms,
         env[i].decay_ms,
         env[i].release_ms,
         env[i].attack_level,
         env[i].sustain_level);
-    if (sh[i]) printf(" d%d", sh[i]);
+    if (EXS_SH(i)) printf(" d%d", EXS_SH(i));
     if (ofg[i]) printf(" G%d (%f/%f)", ofg[i], ofgd[i], oft[i]);
-    if (EXS_OW(i) == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
+    if (EXS_WAVE(i) == PCM) printf(" p%d b%d", op[i], dds[i].oneshot==0);
     printf(" #");
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
         (dds[i].phase_accumulator >> DDS_FRAC_BITS) % dds[i].size,
@@ -666,7 +674,7 @@ void update_dds_extra(int voice, int16_t *ptr, int len, char oneshot, char force
     }
     if (base != dds[voice].base) {
         dds[voice].base = base;
-        dds_freq(voice, EXS_OF(voice));
+        dds_freq(voice, EXS_FREQ(voice));
     }
 }
 
@@ -748,10 +756,10 @@ int wire(char *line, int *thisvoice) {
                     if (i == voice) flag = '*';
                     show_voice(flag, i, 0);
                 }
-                printf("# rtms %ldms\n", rtms);
-                printf("# btms %ldms\n", btms);
-                printf("# diff %ldms\n", btms-rtms);
-                printf("# L%d\n", latency_hack_ms);
+                // printf("# rtms %ldms\n", rtms);
+                // printf("# btms %ldms\n", btms);
+                // printf("# diff %ldms\n", btms-rtms);
+                // printf("# L%d\n", latency_hack_ms);
                 printf("# -d%s\n", device);
                 printf("# frames sent %lld\n", frames_sent);
             } else {
@@ -768,13 +776,11 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'd') {
             int d = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            sh[voice] = d;
-            exvoice[voice][EXSH].i = d;
+            EXS_SH(voice) = d;
         } else if (c == 'M') {
             int m = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            ismod[voice] = m;
-            exvoice[voice][EXISMOD].i = m;
+            EXS_ISMOD(voice) = m;
         } else if (c == 'G') {
             int g = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -782,21 +788,19 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'S') {
             int v = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            EXS_OW(v) = SINE;
-            top[v] = 0;
-            bot[v] = 0;
-            EXS_OFM(v) = -1;
-            EXS_OF(v) = 440;
-            sh[v] = 0;
-            ismod[v] = 0;
+            EXS_WAVE(v) = SINE;
+            EXS_AMPTOP(v) = 0;
+            EXS_AMPBOT(v) = 0;
+            EXS_FREQMOD(v) = -1;
+            EXS_FREQ(v) = 440;
+            EXS_SH(v) = 0;
+            EXS_ISMOD(v) = 0;
         } else if (c == 'F') {
             int f = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (f < VOICES) {
-                EXS_OFM(voice) = f;
-                ismod[f] = 1;
-                exvoice[voice][EXFREQMOD].i = f;
-                exvoice[f][EXISMOD].b = 1;
+                EXS_FREQMOD(voice) = f;
+                EXS_ISMOD(f) = 1;
             }
         } else if (c == 'B') {
             // breakpoint aka ADR ... poor copy of AMY's
@@ -840,14 +844,14 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             if (f >= 0.0) {
                 if (ofg[voice] > 0) {
-                    double d = f - EXS_OF(voice);
+                    double d = f - EXS_FREQ(voice);
                     ofgd[voice] = d / (double)ofg[voice];
                     oft[voice] = f;
                     f += d;
-                    EXS_OF(voice) = f;
+                    EXS_FREQ(voice) = f;
                     dds_freq(voice, f);
                 } else {
-                    EXS_OF(voice) = f;
+                    EXS_FREQ(voice) = f;
                     dds_freq(voice, f);
                 }
             }
@@ -860,7 +864,7 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             a *= AFACTOR;
             if (a >= 0.0) {
-                oa[voice] = a;
+                EXS_AMP(voice) = a;
                 calc_ratio(voice);
             }
         } else if (c == 'b') {
@@ -895,7 +899,7 @@ int wire(char *line, int *thisvoice) {
             int w = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (w >= 0 && w < WAVE_MAX) {
-                EXS_OW(voice) = w;
+                EXS_WAVE(voice) = w;
                 int16_t *ptr = pwave_none;
                 int len = 0;
                 double base = 0;
@@ -961,25 +965,9 @@ int wire(char *line, int *thisvoice) {
             if (!valid) break; else p += next-1;
             if (note >= 0.0 && note <= 127.0) {
                 on[voice] = note;
-                EXS_OF(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
-                dds_freq(voice, EXS_OF(voice));
+                EXS_FREQ(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
+                dds_freq(voice, EXS_FREQ(voice));
             }
-        // } else if (c == 't') {
-        //     int n = mytol(&line[p], &valid, &next);
-        //     // printf("top :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
-        //     if (!valid) break; else p += next-1;
-        //     if (n >= 0) {
-        //         top[voice] = n;
-        //         if (bot[voice] > 0) oa[voice] = (double)top[voice]/(double)bot[voice];
-        //     }
-        // } else if (c == 'b') {
-        //     int n = mytol(&line[p], &valid, &next);
-        //     // printf("bot :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
-        //     if (!valid) break; else p += next-1;
-        //     if (n > 0) {
-        //         bot[voice] = n;
-        //         if (bot[voice] > 0) oa[voice] = (double)top[voice]/(double)bot[voice];
-        //     }
         } else if (c == 'L') {
             int n = mytol(&line[p], &valid, &next);
             // printf("LAT :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
@@ -1038,13 +1026,13 @@ int wire(char *line, int *thisvoice) {
                 if (oe[voice]) {
                     env_off(&env[voice]);
                 } else {
-                    oa[voice] = 0.0;
+                    EXS_AMP(voice) = 0.0;
                     calc_ratio(voice);
                 }
             } else if (velocity > 0.0) {
                 dds[voice].phase_accumulator = 0;
                 dds[voice].active = 1;
-                oa[voice] = velocity;
+                EXS_AMP(voice) = velocity;
                 calc_ratio(voice);
                 env_on(&env[voice]);
             }
@@ -1062,7 +1050,7 @@ int wire(char *line, int *thisvoice) {
   return 0;
 }
 
-#define HISTORY_FILE ".synth_history"
+#define HISTORY_FILE ".exsynthia_history"
 
 void *user(void *arg) {
     int voice = 0;
@@ -1095,82 +1083,41 @@ int16_t *waves[WAVE_MAX] = {
     pwave_none,
 };
 
-void synth(int16_t *buffer, int period_size) {
-    int32_t a = 0;
+void engine(int16_t *buffer, int period_size) {
     int32_t b = 0;
+    // TODO process EGs here
     for (int n = 0; n < period_size; n++) {
         buffer[n] = 0;
-        int c = 0;
         // process modulators first
         for (int i=0; i<VOICES; i++) {
-            cachemod[i] = 0;
-            if (EXS_OW(i) == NONE) continue;
-            if (oa[i] == 0.0) continue;
-            if (top[i] == 0 || bot[i] == 0) continue;
-            if (ismod[i]) {
-                b = (dds_next(i)) * top[i] / bot[i];
-                // b = (dds_next(&dds[i])) * top[i] / bot[i];
-                if (EXS_OFM(i) >= 0) {
-                    dds_freq(i, EXS_OF(i) + (double)cachemod[EXS_OFM(i)]);
-                }
-                if (oe[i]) {
-                    int32_t envelope_value = env_next(&env[i]);
-                    int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
-                    b = sample;
-                } else {
-                    if (sh[i]) {
-                        if (shi[i] > sh[i]) {
-                            // get next sample
-                            shi[i] = 0;
-                            shs[i] = b;
-                        }
-                        shi[i]++;
-                        b = shs[i];
-                    }
-                }
-                cachemod[i] = b;
-                exvoice[i][EXLASTSAMPLE].s = b;
+            EXS_LASTSAMPLE(i) = 0;
+            if (EXS_WAVE(i) == NONE) continue;
+            if (EXS_AMP(i) == 0.0) continue;
+            if (EXS_AMPTOP(i) == 0 || EXS_AMPBOT(i) == 0) continue;
+            b = (dds_next(i)) * EXS_AMPTOP(i) / EXS_AMPBOT(i);
+            if (EXS_FREQMOD(i) >= 0) {
+                dds_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(EXS_FREQMOD(i)));
             }
-        }
-        // process things that are not modulators
-        for (int i=0; i<VOICES; i++) {
-            if (ismod[i]) continue;
-            if (EXS_OW(i) == NONE) continue;
-            if (oa[i] == 0.0) continue;
-            if (top[i] == 0 || bot[i] == 0) continue;
-            c++;
-            a = dds_next(i) * top[i] / bot[i];
-            // a = (dds_next(&dds[i])) * top[i] / bot[i];
-            if (EXS_OFM(i) >= 0) {
-                dds_freq(i, EXS_OF(i) + (double)cachemod[EXS_OFM(i)]);
-            }
+            // TODO... the eg next should have happened earlier. this should apply that value if enabled
             if (oe[i]) {
                 int32_t envelope_value = env_next(&env[i]);
-                // int32_t sample = (a * envelope_value) >> 2;
-                int64_t sample = (a * envelope_value) >> ENV_FRAC_BITS;
-                buffer[n] += sample;
-            } else {
-                if (sh[i]) {
-                  if (shi[i] > sh[i]) {
-                    // get next sample
-                    shi[i] = 0;
-                    shs[i] = a;
-                  }
-                  shi[i]++;
-                  a = shs[i];
-                }
-                if (exvoice[i][EXINTERP].b) {
-                    int64_t s = (a + exvoice[i][EXLASTSAMPLE].s) / 2;
-                    a = s;
-                }
-                buffer[n] += a;
-                exvoice[i][EXLASTSAMPLE].s = a;
+                int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
+                b = sample;
             }
+            if (EXS_SH(i)) {
+                if (EXS_SHI(i) > EXS_SH(i)) {
+                    // get next sample
+                    EXS_SHI(i) = 0;
+                    EXS_SHS(i) = b;
+                }
+                EXS_SHI(i)++;
+                b = EXS_SHS(i);
+            }
+            EXS_LASTSAMPLE(i) = b;
+            if (!EXS_ISMOD(i)) buffer[n] += b;
         }
-        // buffer[n] /= c;
     }
 }
-
 
 int main(int argc, char *argv[]) {
     char devicename[1024] = DEFAULT_DEVICE;
@@ -1227,14 +1174,14 @@ int main(int argc, char *argv[]) {
 
     printf("voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {
-        EXS_OF(i) = 440.0;
-        EXS_OFM(i) = -1;
-        ismod[i] = 0;
-        EXS_OW(i) = SINE;
-        sh[i] = 0;
-        shi[i] = 0;
-        dds_init(i, sizeof(pwave_sin)/sizeof(int16_t), EXS_OF(i), pwave_sin, i);
-        oa[i] = 0;
+        EXS_FREQ(i) = 440.0;
+        EXS_FREQMOD(i) = -1;
+        EXS_ISMOD(i) = 0;
+        EXS_WAVE(i) = SINE;
+        EXS_SH(i) = 0;
+        EXS_SHI(i) = 0;
+        dds_init(i, sizeof(pwave_sin)/sizeof(int16_t), EXS_FREQ(i), pwave_sin, i);
+        EXS_AMP(i) = 0;
         calc_ratio(i);
     }
 
@@ -1266,7 +1213,7 @@ int main(int argc, char *argv[]) {
     if (audio_open(device, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
         out("WTF?");
     } else {
-      audio_start(synth);
+      audio_start(engine);
       while (audio_running() && control_running) {
         sleep(1);
       }
