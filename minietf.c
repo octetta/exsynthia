@@ -1,4 +1,10 @@
+#ifdef __APPLE__
+#include <arpa/inet.h>
+#define be16toh(x) ntohs(x)
+#define be32toh(x) ntohl(x)
+#else
 #include <endian.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -85,7 +91,7 @@ void etf_dump(struct etf_tuple *tuple) {
   if (!tuple) return;
   char *s = "";
   LOG("{");
-  if (tuple->key) LOG("\"%s\"", tuple->key);
+  if (tuple->key[0]) LOG("\"%s\"", tuple->key);
   switch (tuple->type) {
     case etf_nil:
       break;
