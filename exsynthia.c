@@ -246,25 +246,29 @@ int zintp[VOICES];
 // #define EXS_OF(voice) of[voice]
 #define EXS_OF(voice) exvoice[voice][EXFREQ].f
 
+// #define EXS_OFM(voice) ofm[voice]
+#define EXS_OFM(voice) exvoice[voice][EXFREQMOD].i
+
 enum {
     EXWAVE, // waveform index
-    EXBASE, // base freq
-    EXSIZE, // waveform size
-    EXPTR, // waveform pointer
-    EXONESHOT,
-    EXACTIVE,
+    EXISMOD, // voice is a modulator (no direct sound)
+    EXBASE, // base freq (from DDS)
+    EXSIZE, // waveform size (from DDS)
+    EXPTR, // waveform pointer (from DDS)
+    EXONESHOT, // from DDS
+    EXACTIVE, // from DDS
+    //
     EXLASTSAMPLE, // last wave sample
     EXINTERP, // interpolated wave sample
     //
-    EXISMOD, // voice is a modulator (no direct sound)
     //
     EXSH, // sample and hold amount
     EXSHI, // 
     EXSHS, //
     //
     EXFREQ, // wave frequency for human
-    EXFREQAA, // wave freq fixedpoint phase accumulator u64
-    EXFREQINC, // wave freq fixedpoint phase inc i32
+    EXFREQAA, // wave freq fixedpoint phase accumulator u64 (from DDS)
+    EXFREQINC, // wave freq fixedpoint phase inc i32 (from DDS)
     EXFREQMOD, // mod voice
     EXFREQMODAMT, // amount of mod
     EXFREQGLIS, // glissando
@@ -332,7 +336,7 @@ union ExVoice exvoice[VOICES][EXMAXCOLS];
 // TODO
 int ismod[VOICES];
 int cachemod[VOICES];
-int ofm[VOICES]; // choose which oscillator is a frequency modulator
+// int ofm[VOICES]; // choose which oscillator is a frequency modulator
 // int oam[VOICES]; // choose which oscillator is a amplitude modulator
 // int opm[VOICES]; // choose which oscillator is a panning modulator
 
@@ -341,8 +345,6 @@ int top[VOICES];
 int bot[VOICES];
 
 #include "linenoise.h"
-
-//unsigned long long sent = 0;
 
 int agcd(int a, int b) {
     while (b != 0) {
@@ -634,7 +636,7 @@ void show_voice(char flag, int i, char forceshow) {
     // printf(" t%d b%d", top[i], bot[i]);
     if (exvoice[i][EXINTERP].b) printf(" Z1");
     if (ismod[i]) printf(" M%d", ismod[i]);
-    if (ofm[i] >= 0) printf(" F%d", ofm[i]);
+    if (EXS_OFM(i) >= 0) printf(" F%d", EXS_OFM(i));
     if (oe[i]) printf(" e%d B%d,%d,%d,%d,%d", oe[i],
         env[i].attack_ms,
         env[i].decay_ms,
@@ -751,7 +753,7 @@ int wire(char *line, int *thisvoice) {
                 printf("# diff %ldms\n", btms-rtms);
                 printf("# L%d\n", latency_hack_ms);
                 printf("# -d%s\n", device);
-                printf("# sent %lld\n", sent);
+                printf("# frames sent %lld\n", frames_sent);
             } else {
                 int i = voice;
                 char flag = ' ';
@@ -783,7 +785,7 @@ int wire(char *line, int *thisvoice) {
             EXS_OW(v) = SINE;
             top[v] = 0;
             bot[v] = 0;
-            ofm[v] = -1;
+            EXS_OFM(v) = -1;
             EXS_OF(v) = 440;
             sh[v] = 0;
             ismod[v] = 0;
@@ -791,7 +793,7 @@ int wire(char *line, int *thisvoice) {
             int f = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (f < VOICES) {
-                ofm[voice] = f;
+                EXS_OFM(voice) = f;
                 ismod[f] = 1;
                 exvoice[voice][EXFREQMOD].i = f;
                 exvoice[f][EXISMOD].b = 1;
@@ -1108,8 +1110,8 @@ void synth(int16_t *buffer, int period_size) {
             if (ismod[i]) {
                 b = (dds_next(i)) * top[i] / bot[i];
                 // b = (dds_next(&dds[i])) * top[i] / bot[i];
-                if (ofm[i] >= 0) {
-                    dds_freq(i, EXS_OF(i) + (double)cachemod[ofm[i]]);
+                if (EXS_OFM(i) >= 0) {
+                    dds_freq(i, EXS_OF(i) + (double)cachemod[EXS_OFM(i)]);
                 }
                 if (oe[i]) {
                     int32_t envelope_value = env_next(&env[i]);
@@ -1139,8 +1141,8 @@ void synth(int16_t *buffer, int period_size) {
             c++;
             a = dds_next(i) * top[i] / bot[i];
             // a = (dds_next(&dds[i])) * top[i] / bot[i];
-            if (ofm[i] >= 0) {
-                dds_freq(i, EXS_OF(i) + (double)cachemod[ofm[i]]);
+            if (EXS_OFM(i) >= 0) {
+                dds_freq(i, EXS_OF(i) + (double)cachemod[EXS_OFM(i)]);
             }
             if (oe[i]) {
                 int32_t envelope_value = env_next(&env[i]);
@@ -1226,7 +1228,7 @@ int main(int argc, char *argv[]) {
     printf("voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {
         EXS_OF(i) = 440.0;
-        ofm[i] = -1;
+        EXS_OFM(i) = -1;
         ismod[i] = 0;
         EXS_OW(i) = SINE;
         sh[i] = 0;

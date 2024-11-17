@@ -8,7 +8,7 @@
 struct timeval rtns0;
 struct timeval rtns1;
 
-unsigned long long sent = 0;
+unsigned long long frames_sent = 0;
 long int rtms = 0;
 long int btms = 0;
 long int diff = 0;
@@ -149,11 +149,11 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
             poke[ptr++] = audio_buffer[i];
             poke[ptr++] = audio_buffer[i];
         }
-        sent+=frame_count;
+        frames_sent+=frame_count;
 #if 0
         gettimeofday(&rtns1, NULL);
         rtms = TV2MS(rtns1)-TV2MS(rtns0);
-        btms = sent * 1000 / audio_sample_rate;
+        btms = frames_sent * 1000 / audio_sample_rate;
         diff = btms - rtms;
         if (diff > latency_hack_ms) diff -= latency_hack_ms;
 #endif
@@ -339,10 +339,10 @@ static int ALSA_audio_start(void (*fn)(int16_t*,int)) {
         } else {
             // try to not get too far ahead of realtime...
             // without this, we get about 24 seconds ahead of realtime!
-            sent+=audio_buffer_len;
+            frames_sent+=audio_buffer_len;
             gettimeofday(&rtns1, NULL);
             rtms = TV2MS(rtns1)-TV2MS(rtns0);
-            btms = sent * 1000 / audio_sample_rate;
+            btms = frames_sent * 1000 / audio_sample_rate;
             diff = btms - rtms;
             if (diff > latency_hack_ms) {
                 diff -= latency_hack_ms;

@@ -17,7 +17,7 @@ void audio_close(void);
 extern struct timeval rtns0;
 extern struct timeval rtns1;
 
-extern long long sent;
+extern long long frames_sent;
 extern long int rtms;
 extern long int btms;
 extern long int diff;
