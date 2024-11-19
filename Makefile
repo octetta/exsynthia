@@ -1,5 +1,6 @@
 TARGETS = \
 exsynthia \
+mf0 \
 #
 
 all: $(TARGETS)
@@ -17,7 +18,7 @@ LIBS = \
 #
 
 ifeq ($(shell uname), Linux)
-LIBS += -lasound
+LIBS += -lasound -latomic
 endif
 
 minietf.o : minietf.c minietf.h
@@ -35,5 +36,7 @@ audio.o : audio.c audio.h
 exsynthia: exsynthia.c $(MYLIBS)
 	gcc -g exsynthia.c $(MYLIBS) -o $@ $(LIBS)
 
+mf0: mf0.c
+	gcc mf0.c -o mf0
 clean:
 	rm -f $(TARGETS) $(MYLIBS)

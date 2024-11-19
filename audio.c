@@ -113,11 +113,11 @@ static int MA_audio_list(char *what, char *filter) {
     strlower(lfilter);
   }
   if (what && what[0] == 'p') {
-    if (output) puts("playback devices");
+    if (output) puts("# playback devices");
     for (i=0; i<playbackCount; i++) {
         strcpy(name, pPlaybackInfos[i].name);
         strlower(name);
-        if (output) printf("%d <%s>\n", i, name);
+        if (output) printf("-p%d # \"%s\"\n", i, name);
         if (!output) {
             char *needle = lfilter;
             char *haystack = name;
@@ -130,9 +130,9 @@ static int MA_audio_list(char *what, char *filter) {
   }
 
   if (what && what[0] == 'c') {
-    if (output) puts("capture devices");
+    if (output) puts("# capture devices");
     for (i=0; i<captureCount; i++) {
-        if (output) printf("%d : %s\n", i, pCaptureInfos[i].name);
+        if (output) printf("-c%d # \"%s\"\n", i, pCaptureInfos[i].name);
     }
   }
   return 1000;

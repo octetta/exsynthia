@@ -2,6 +2,7 @@
 synth
 .exsynthia_history
 exsynthia
+mf0
 _wave*
 *.o
 *.dSYM

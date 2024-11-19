@@ -1,0 +1,58 @@
+transcript of trying to figure out w7 playback weirdness
+
+stewartj@nuc:~/exsynthia$ ./exsynthia 
+use filter default
+DDS Q17.15
+ENV Q18.14
+PCM patches 100
+voices 24
+using playback device 9
+using miniaudio 0.11.21 from https://miniaud.io
+
+> <
+
+> v0w7p22f440l5
+v0 w7 p0 # ptr:0x7b47380024f0 len:23135 oneshot:0 active:0 base:440.000000
+v0 w7 p22 # ptr:0x7b47380c7dc0 len:7711 oneshot:0 active:0 base:440.000000
+
+> ?
+* v0 w7 f440.0000 a5.0000 p22 b1 # acc:4320 inc:0.057465 len:7711 div:44100 b:440.000000
+
+
+> f7654.7
+
+> ?
+* v0 w7 f7654.7000 a5.0000 p22 b1 # acc:467 inc:1.000000 len:7711 div:44100 b:440.000000
+
+> p20
+v0 w7 p20 # ptr:0x7b47380bda70 len:16434 oneshot:0 active:0 base:440.000000
+
+> p24
+v0 w7 p24 # ptr:0x7b473cf55010 len:134150 oneshot:0 active:0 base:440.000000
+
+> p23
+v0 w7 p23 # ptr:0x7b47380cba10 len:9482 oneshot:0 active:0 base:440.000000
+
+> ?
+* v0 w7 f7654.7000 a5.0000 p23 b1 # acc:3150 inc:1.000000 len:9482 div:44100 b:440.000000
+
+> v1w7p24f440l5
+v1 w7 p0 # ptr:0x7b47380024f0 len:23135 oneshot:0 active:0 base:440.000000
+v1 w7 p24 # ptr:0x7b473cf55010 len:134150 oneshot:0 active:0 base:440.000000
+
+> ??
+  v0 w7 f7654.7000 a5.0000 p24 b1 # acc:129472 inc:1.000000 len:134150 div:44100 b:440.000000
+* v1 w7 f440.0000 a5.0000 p24 b1 # acc:50682 inc:1.000000 len:134150 div:44100 b:440.000000
+# -d9
+# frames sent 9925632
+
+> v0l5v1l5
+
+> ?
+* v1 w7 f440.0000 a5.0000 p24 b1 # acc:124904 inc:1.000000 len:134150 div:44100 b:440.000000
+
+> v0
+> ?
+* v0 w7 f7654.7000 a5.0000 p24 b1 # acc:72650 inc:1.000000 len:134150 div:44100 b:440.000000
+
+
