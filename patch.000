@@ -1,11 +1,11 @@
-# * v0 w4 f110.0000 e0 a0.5000 F1 :: dds w:0x653cff0542c0 len:4096
-#   v1 w4 f0.5000 e0 a0.0050 M1 F2 :: dds w:0x653cff0542c0 len:4096
-#   v2 w4 f46.2493 e0 a0.0010 M1 F3 :: dds w:0x653cff0542c0 len:4096
-#   v3 w0 f0.2500 e0 a0.0010 M1 :: dds w:0x653cff0542c0 len:4096
-#   v4 w0 f440.0000 e0 a0.0000 M1 :: dds w:0x653cff0542c0 len:4096
-#   v5 w0 f440.0000 e0 a0.0000 :: dds w:0x653cff0542c0 len:4096
-#   v6 w0 f440.0000 e0 a0.0000 :: dds w:0x653cff0542c0 len:4096
-#   v7 w1 f440.0000 e0 a0.0000 :: dds w:0x653cff0542c0 len:4096
+v0 w4 f110.0000 e0 a0.5000 F1 # dds w:0x653cff0542c0 len:4096
+v1 w4 f0.5000 e0 a0.0050 M1 F2 # dds w:0x653cff0542c0 len:4096
+v2 w4 f46.2493 e0 a0.0010 M1 F3 # dds w:0x653cff0542c0 len:4096
+v3 w0 f0.2500 e0 a0.0010 M1 # dds w:0x653cff0542c0 len:4096
+v4 w0 f440.0000 e0 a0.0000 M1 # dds w:0x653cff0542c0 len:4096
+v5 w0 f440.0000 e0 a0.0000 # dds w:0x653cff0542c0 len:4096
+v6 w0 f440.0000 e0 a0.0000 # dds w:0x653cff0542c0 len:4096
+v7 w1 f440.0000 e0 a0.0000 # dds w:0x653cff0542c0 len:4096
 
 v0w4f110a.5F1
 v1w4f.5a.005F2

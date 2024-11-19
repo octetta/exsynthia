@@ -1050,6 +1050,26 @@ int wire(char *line, int *thisvoice) {
                 calc_ratio(voice);
                 env_on(&env[voice]);
             }
+        } else if (c == '[') {
+            int x = mytol(&line[p], &valid, &next);
+            if (!valid) break; else p += next-1;
+            char filename[1024];
+            int localvoice = voice;
+            sprintf(filename, "patch.%03d", x);
+            FILE *file = fopen(filename, "r");
+            if (file != NULL) {
+                char look[1000];
+                while (fgets(look, sizeof(look), file) != NULL) {
+                    int n = strlen(look);
+                    if (n > 0) {
+                        look[n-1] = '\0';
+                        // printf("<%s>\n", look);
+                        int r = wire(look, &localvoice);
+                        // printf("result = %d\n", r);
+                    }
+                }
+                fclose(file);
+            }
         } else {
             valid = 0;
             break;
