@@ -1155,9 +1155,9 @@ int main(int argc, char *argv[]) {
     
     if (playbackname[0] >= '0' && playbackname[0] <= '9') {
         playbackindex = atoi(playbackname);
-        printf("# use index %d\n", playbackindex);
+        printf("# use playback device index %d\n", playbackindex);
     } else {
-        printf("# use filter %s\n", playbackname);
+        printf("# search for playback device with string \"%s\"\n", playbackname);
         playbackindex = audio_list("pcm", playbackname);
     }
     sprintf(theplayback, "%d", playbackindex);
@@ -1223,7 +1223,7 @@ int main(int argc, char *argv[]) {
 
     signal(SIGABRT, signal_handler);
 
-    printf("# using playback device %s\n", theplayback);
+    printf("# using playback device %d -> \"%s\"\n", playbackindex, audio_playbackname(playbackindex));
     if (audio_open(theplayback, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
         puts("WTF?");
     } else {

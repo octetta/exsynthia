@@ -91,6 +91,13 @@ int MA_init(void) {
   return 0;
 }
 
+static char *MA_playbackname(int i) {
+    if (!MA_started) return "?";
+    if (i >= 0 && i <= pbmax) {
+        return pPlaybackInfos[i].name;
+    }
+}
+
 #include <ctype.h>
 
 static void strlower(char *s) {
@@ -390,10 +397,10 @@ int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   audio_buffer = (int16_t *)malloc(buffer_len * sizeof(int16_t));
   audio_sample_rate = sample_rate;
   #ifdef USE_ALSA
-  puts("using raw ALSA");
+  puts("# using raw ALSA");
   return ALSA_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #else
-  printf("using miniaudio %s from https://miniaud.io\n", MA_VERSION_STRING);
+  printf("# using miniaudio v%s from https://miniaud.io\n", MA_VERSION_STRING);
   return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
   #endif
 }
@@ -427,4 +434,10 @@ void audio_close(void) {
   #endif
 }
 
-
+char *audio_playbackname(int i) {
+  #ifdef USE_ALSA
+  return "?"
+  #else
+  return MA_playbackname(i);
+  #endif   
+}

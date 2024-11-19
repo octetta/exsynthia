@@ -13,6 +13,7 @@ int audio_start(void (*fn)(int16_t*,int));
 int audio_running(void);
 int audio_stop(void);
 void audio_close(void);
+char *audio_playbackname(int i);
 
 extern struct timeval rtns0;
 extern struct timeval rtns1;
