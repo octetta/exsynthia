@@ -1071,6 +1071,7 @@ int wire(char *line, int *thisvoice) {
             char filename[1024];
             int localvoice = voice;
             sprintf(filename, "patch.%03d", x);
+            printf("# try to load %s\n", filename);
             FILE *file = fopen(filename, "r");
             if (file != NULL) {
                 char look[1000];
