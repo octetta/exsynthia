@@ -699,6 +699,19 @@ void show_voice(char flag, int voice, char forceshow) {
     puts("");
 }
 
+void trigger_active(void) {
+    for (int voice=0; voice<VOICES; voice++) {
+        double velocity = EXS_AMP(voice);
+        if (velocity > 0.0) {
+            EXS_FREQACC(voice) = 0;
+            EXS_FREQACTIVE(voice) = 1;
+            EXS_AMP(voice) = velocity;
+            calc_ratio(voice);
+            env_on(&env[voice]);
+        }
+    } 
+}
+
 int wire(char *line, int *thisvoice) {
     int p = 0;
     int valid;
@@ -982,13 +995,13 @@ int wire(char *line, int *thisvoice) {
                 EXS_FREQ(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
                 wave_freq(voice, EXS_FREQ(voice));
             }
-        } else if (c == 'L') {
-            int n = mytol(&line[p], &valid, &next);
-            // printf("LAT :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
-            if (!valid) break; else p += next-1;
-            if (n > 0) {
-                latency_hack_ms = n;
-            }
+        // } else if (c == 'L') {
+        //     int n = mytol(&line[p], &valid, &next);
+        //     // printf("LAT :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
+        //     if (!valid) break; else p += next-1;
+        //     if (n > 0) {
+        //         latency_hack_ms = n;
+        //     }
         } else if (c == 'W') {
             char peek = line[p];
             if (peek >= '0' && peek <= '9') {
@@ -1031,6 +1044,8 @@ int wire(char *line, int *thisvoice) {
                 //     printf("%d usr%d (%s/%d)\n", i, n, usrnam[n], usrlen[n]);
                 // }
             }
+        } else if (c == 'L') {
+            trigger_active();
         } else if (c == 'l') {
             double velocity = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1063,7 +1078,7 @@ int wire(char *line, int *thisvoice) {
                     int n = strlen(look);
                     if (n > 0) {
                         look[n-1] = '\0';
-                        // printf("<%s>\n", look);
+                        printf("# %s\n", look);
                         int r = wire(look, &localvoice);
                         // printf("result = %d\n", r);
                     }
