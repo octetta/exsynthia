@@ -673,7 +673,8 @@ env_t env[VOICES];
 
 void show_voice(char flag, int voice, char forceshow) {
     if (forceshow == 0) {
-      if (EXS_AMPTOP(voice) == 0) return;
+      if (EXS_AMP(voice) == 0) return;
+    //   if (EXS_AMPTOP(voice) == 0) return;
       if (EXS_FREQ(voice) == 0) return;
     }
     printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
@@ -699,16 +700,49 @@ void show_voice(char flag, int voice, char forceshow) {
     puts("");
 }
 
+int wire(char *line, int *thisvoice);
+
 void trigger_active(void) {
     for (int voice=0; voice<VOICES; voice++) {
         double velocity = EXS_AMP(voice);
+        double freq = EXS_FREQ(voice);
+        int wave = EXS_WAVE(voice);
+        #if 0
+        int copyvoice = voice;
+        char wstr[64];
+
+        char fstr[64];
+        sprintf(fstr, "%.5f", freq);
+
+        char *fptr = fstr;
+        if (freq < 1) {
+            fptr++;
+        }
+        
+        char lstr[64];
+        sprintf(lstr, "%.5f", velocity);
+
+        char *lptr = lstr;
+        if (velocity < 1) {
+            lptr++;
+        }
+
+        sprintf(wstr, "v%dw%df%sl%s", voice, wave, fptr, lptr);
+        printf("# -> %s\n", wstr);
+
+        wire(wstr, &copyvoice);
+        #else
         if (velocity > 0.0) {
+            printf("# voice:%d wave:%d freq:%g velocity:%g\n", voice, wave, freq, velocity);
             EXS_FREQACC(voice) = 0;
             EXS_FREQACTIVE(voice) = 1;
-            EXS_AMP(voice) = velocity;
             calc_ratio(voice);
             env_on(&env[voice]);
         }
+        if (freq > 0.0) {
+            wave_freq(voice, freq);
+        }
+        #endif
     } 
 }
 
