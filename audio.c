@@ -96,6 +96,7 @@ static char *MA_playbackname(int i) {
     if (i >= 0 && i <= pbmax) {
         return pPlaybackInfos[i].name;
     }
+    return "?";
 }
 
 #include <ctype.h>
@@ -416,6 +417,7 @@ int audio_start(void (*fn)(int16_t*,int)) {
 
 int audio_stop(void) {
     audio_is_running = 0;
+    return audio_is_running;
 }
 
 int audio_list(char *what, char *filter) {
