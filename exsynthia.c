@@ -707,6 +707,8 @@ void trigger_active(void) {
         double velocity = EXS_AMP(voice);
         double freq = EXS_FREQ(voice);
         int wave = EXS_WAVE(voice);
+        int top = EXS_AMPTOP(voice);
+        int bot = EXS_AMPBOT(voice);
         #if 0
         int copyvoice = voice;
         char wstr[64];
@@ -733,7 +735,8 @@ void trigger_active(void) {
         wire(wstr, &copyvoice);
         #else
         if (velocity > 0.0) {
-            printf("# voice:%d wave:%d freq:%g velocity:%g\n", voice, wave, freq, velocity);
+            printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n",
+                voice, wave, freq, velocity, top, bot);
             EXS_FREQACC(voice) = 0;
             EXS_FREQACTIVE(voice) = 1;
             calc_ratio(voice);
