@@ -700,6 +700,27 @@ void show_voice(char flag, int voice, char forceshow) {
     puts("");
 }
 
+int getwav(int i) {
+    char name[64];
+    sprintf(name, "%03d.wav", i);
+    int frames = mw_frames(name);
+    if (frames > 0) {
+        printf("%s has %d frames\n", name, frames);
+        if (uwave[i]) {
+            printf("free W%d\n", i);
+            free(uwave[i]);
+        }
+        int16_t *dest = malloc(frames * sizeof(int16_t));
+        uwave[i] = dest;
+        uwave_size[i] = frames;
+        uwave_one[i] = 0;
+        uwave_freq[i] = 440.0;
+        int n = mw_get(name, dest, frames);
+        strcpy(uwave_name[i], name);
+    }
+    return 0;
+}
+
 int wire(char *line, int *thisvoice);
 
 void trigger_active(void) {
@@ -765,27 +786,28 @@ int wire(char *line, int *thisvoice) {
         if (c == '*') {
             // nop
         } else if (c == '<') {
-            // get waveform from somewhere
-            // for the short term, just get them from
-            // wf0.wav
-            char name[64];
-            for (int i=0; i<USRWAVMAX; i++) {
-                sprintf(name, "%03d.wav", i);
-                int frames = mw_frames(name);
-                // printf("%s has %d frames\n", name, frames);
-                if (frames > 0) {
-                    if (uwave[i]) {
-                        printf("free W%d\n", i);
-                        free(uwave[i]);
-                    }
-                    int16_t *dest = malloc(frames * sizeof(int16_t));
-                    uwave[i] = dest;
-                    uwave_size[i] = frames;
-                    uwave_one[i] = 0;
-                    uwave_freq[i] = 440.0;
-                    int n = mw_get(name, dest, frames);
-                    strcpy(uwave_name[i], name);
+            char peek = line[p];
+            switch (peek) {
+              case '0': case '1': case '2': case '3': case '4':
+              case '5': case '6': case '7': case '8': case '9':
+                {
+                  int ms = mytol(&line[p], &valid, &next);
+                  if (!valid) goto errexit;
+                  p += next-1;
+                  printf("# capture for %dms\n", ms);
                 }
+                break;
+              case 'p':
+                p++;
+                // get ###.wav
+                int n = mytol(&line[p], &valid, &next);
+                if (!valid) goto errexit;
+                p += next-1;
+                getwav(n);
+                break;
+              default:
+                valid = 0;
+                goto errexit;
             }
         } else if (c == ':') {
             char peek = line[p];
@@ -1128,6 +1150,7 @@ int wire(char *line, int *thisvoice) {
             break;
         }
     }
+    errexit: // if something bad happened, i hope you set valid == 0
     if (!valid) {
         printf("trouble -> %s\n", &line[p-1]);
     }
