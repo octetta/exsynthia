@@ -472,6 +472,7 @@ char *mytok(char *str, char tok, int *next) {
 #endif
 
 char theplayback[1024] = DEFAULT_DEVICE;
+char thecapture[1024] = DEFAULT_DEVICE;
 
 static int _user_running = 1;
 
@@ -1097,7 +1098,7 @@ int wire(char *line, int *thisvoice) {
                 printf("%d pcm\n", EXWAVEPCM);
                 printf("%d usr1\n", EXWAVEUSR1);
                 printf("%d usr2\n", EXWAVEUSR2);
-                printf("%d usr3\n", EXWAVEUSR3);
+                printf("%d capture\n", EXWAVEUSR3);
                 // for (int i=NOIZ+1; i<PWAVEMAX-1; i++) {
                 //     int n = i-NOIZ-1;
                 //     printf("%d usr%d (%s/%d)\n", i, n, usrnam[n], usrlen[n]);
@@ -1193,7 +1194,7 @@ int16_t *waves[PWAVEMAX] = {
     pwave_none,
 };
 
-void engine(int16_t *buffer, int period_size) {
+void engine(int16_t *buffer, int16_t *capture, int period_size) {
     int32_t b = 0;
     // TODO process EGs here
     for (int n = 0; n < period_size; n++) {
@@ -1203,7 +1204,11 @@ void engine(int16_t *buffer, int period_size) {
             if (EXS_WAVE(i) == EXWAVENONE) continue;
             if (EXS_AMP(i) == 0.0) continue;
             if (EXS_AMPTOP(i) == 0 || EXS_AMPBOT(i) == 0) continue;
-            b = (wave_next(i)) * EXS_AMPTOP(i) / EXS_AMPBOT(i);
+            if (capture && EXS_WAVE(i) == EXWAVEUSR3) {
+              b = capture[i*2];
+            } else {
+              b = (wave_next(i)) * EXS_AMPTOP(i) / EXS_AMPBOT(i);
+            }
             if (EXS_FREQMOD(i) >= 0) {
                 wave_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(EXS_FREQMOD(i)));
             }
@@ -1230,25 +1235,30 @@ void engine(int16_t *buffer, int period_size) {
 
 int main(int argc, char *argv[]) {
     char playbackname[1024] = DEFAULT_DEVICE;
+    char capturename[1024] = DEFAULT_DEVICE;
     if (argc > 1) {
-        if (argv[1][0] == '-') {
-            switch(argv[1][1]) {
-            case 'l':
-                audio_list("playback", "");
-                // audio_list("capture", "");
-                return 0;
-            // case 'm':
-            //     audio_list("rawmidi", "");
-            //     return 0;
-            case 'p':
-                strcpy(playbackname, &argv[1][2]);
-                break;
+        for (int i=1; i<argc; i++) {
+            if (argv[i][0] == '-') {
+              switch(argv[i][1]) {
+              case 'l':
+                  audio_list("playback", "");
+                  audio_list("capture", "");
+                  return 0;
+              // case 'm':
+              //     audio_list("rawmidi", "");
+              //     return 0;
+              case 'p':
+                  strcpy(playbackname, &argv[i][2]);
+                  break;
+              case 'c':
+                  strcpy(capturename, &argv[i][2]);
+                  break;
+              }
             }
         }
     }
 
     int playbackindex = 0;
-    
     if (playbackname[0] >= '0' && playbackname[0] <= '9') {
         playbackindex = atoi(playbackname);
         printf("# use playback device index %d\n", playbackindex);
@@ -1257,9 +1267,22 @@ int main(int argc, char *argv[]) {
         playbackindex = audio_list("pcm", playbackname);
     }
     sprintf(theplayback, "%d", playbackindex);
-
     if (playbackindex == AUDIO_NO_MATCH) {
         printf("# no playback device <%s> found\n", playbackname);
+        return 0;
+    }
+
+    int captureindex = 0;
+    if (capturename[0] >= '0' && capturename[0] <= '9') {
+        captureindex = atoi(capturename);
+        printf("# use capture device index %d\n", captureindex);
+    } else {
+        printf("# search for capture device with string \"%s\"\n", capturename);
+        captureindex = audio_list("pcm", capturename);
+    }
+    sprintf(thecapture, "%d", captureindex);
+    if (captureindex == AUDIO_NO_MATCH) {
+        printf("# no capture device <%s> found\n", capturename);
         return 0;
     }
 
@@ -1320,6 +1343,7 @@ int main(int argc, char *argv[]) {
     signal(SIGABRT, signal_handler);
 
     printf("# using playback device %d -> \"%s\"\n", playbackindex, audio_playbackname(playbackindex));
+    printf("# using capture device %d -> \"%s\"\n", captureindex, audio_capturename(captureindex));
     if (audio_open(theplayback, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
         puts("WTF?");
     } else {

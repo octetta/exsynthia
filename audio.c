@@ -93,8 +93,16 @@ int MA_init(void) {
 
 static char *MA_playbackname(int i) {
     if (!MA_started) return "?";
-    if (i >= 0 && i <= pbmax) {
+    if (i >= 0) {
         return pPlaybackInfos[i].name;
+    }
+    return "?";
+}
+
+static char *MA_capturename(int i) {
+    if (!MA_started) return "?";
+    if (i >= 0) {
+        return pCaptureInfos[i].name;
     }
     return "?";
 }
@@ -146,11 +154,11 @@ static int MA_audio_list(char *what, char *filter) {
   return 1000;
 }
 
-static void (*audio_fn)(int16_t*,int) = NULL;
+static void (*audio_fn)(int16_t*,int16_t*,int) = NULL;
 
 static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frame_count) {
     if (audio_fn) {
-        audio_fn(audio_buffer, frame_count);
+        audio_fn(audio_buffer, (int16_t *)pInput, frame_count);
         int16_t *poke = (int16_t *)pOutput;
         int ptr = 0;
         for (int i=0; i<frame_count; i++) {
@@ -168,7 +176,7 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
     }
 }
 
-static int MA_audio_start(void (*fn)(int16_t*,int)) {
+static int MA_audio_start(void (*fn)(int16_t*,int16_t*,int)) {
     audio_fn = fn;
     return 0;
 }
@@ -187,15 +195,18 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
         //
     } else if (playback >= pbmax) return 0;
 
-    config = ma_device_config_init(ma_device_type_playback);
-    // TODO when using a capture device:
-    // config = ma_device_config_init(ma_device_type_duplex);
-      config.playback.pDeviceID = &pPlaybackInfos[playback].id;
+    if (indev) {
+      puts("duplex");
+      config = ma_device_config_init(ma_device_type_duplex);
+    } else {
+      puts("playback");
+      config = ma_device_config_init(ma_device_type_playback);
+    }
   if (capture >= 0) {
-    config.capture.pDeviceID = &pCaptureInfos[capture].id;
+    //config.capture.pDeviceID = &pCaptureInfos[capture].id;
+    //config.capture.pDeviceID = NULL;
   }
   config.playback.format   = ma_format_s16;
-  //config.playback.format   = ma_format_f32;
   config.playback.channels = 2;
   config.sampleRate        = sample_rate;
   config.dataCallback      = audio_data_cb;
@@ -205,6 +216,7 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
   if (capture >= 0) {
     config.capture.format = ma_format_s16;
     config.capture.channels = 2;
+    config.capture.shareMode = ma_share_mode_shared;
   }
 
   config.periodSizeInFrames = buffer_len;
@@ -406,7 +418,7 @@ int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   #endif
 }
 
-int audio_start(void (*fn)(int16_t*,int)) {
+int audio_start(void (*fn)(int16_t*,int16_t*,int)) {
   audio_is_running = 1;
   #ifdef USE_ALSA
   return ALSA_audio_start(fn);
@@ -441,5 +453,13 @@ char *audio_playbackname(int i) {
   return "?"
   #else
   return MA_playbackname(i);
+  #endif   
+}
+
+char *audio_capturename(int i) {
+  #ifdef USE_ALSA
+  return "?"
+  #else
+  return MA_capturename(i);
   #endif   
 }
