@@ -1259,6 +1259,7 @@ int main(int argc, char *argv[]) {
     }
 
     int playbackindex = 0;
+    printf("# <%s>\n", playbackname);
     if (playbackname[0] >= '0' && playbackname[0] <= '9') {
         playbackindex = atoi(playbackname);
         printf("# use playback device index %d\n", playbackindex);
@@ -1283,7 +1284,6 @@ int main(int argc, char *argv[]) {
     sprintf(thecapture, "%d", captureindex);
     if (captureindex == AUDIO_NO_MATCH) {
         printf("# no capture device <%s> found\n", capturename);
-        return 0;
     }
 
     printf("# DDS Q%d.%d\n", 32-DDS_FRAC_BITS, DDS_FRAC_BITS);
@@ -1344,7 +1344,7 @@ int main(int argc, char *argv[]) {
 
     printf("# using playback device %d -> \"%s\"\n", playbackindex, audio_playbackname(playbackindex));
     printf("# using capture device %d -> \"%s\"\n", captureindex, audio_capturename(captureindex));
-    if (audio_open(theplayback, "", SAMPLE_RATE, BUFFER_SIZE) != 0) {
+    if (audio_open(theplayback, NULL, SAMPLE_RATE, BUFFER_SIZE) != 0) {
         puts("WTF?");
     } else {
       audio_start(engine);

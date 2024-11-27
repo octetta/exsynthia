@@ -37,7 +37,7 @@ static int audio_is_running = 0;
 #define MINIAUDIO_IMPLEMENTATION
 
 #define MA_NO_JACK
-#define MA_NO_PULSEAUDIO
+//#define MA_NO_PULSEAUDIO
 
 #include "miniaudio.h"
 
@@ -130,7 +130,11 @@ static int MA_audio_list(char *what, char *filter) {
   }
   if (what && what[0] == 'p') {
     if (output) puts("# playback devices");
+    if (filter && filter[0] >= '0' && filter[0] <= '9') {
+      return atoi(filter);
+    }
     for (i=0; i<playbackCount; i++) {
+        printf("# [%d] <%s>\n", i, pPlaybackInfos[i].name);
         strcpy(name, pPlaybackInfos[i].name);
         strlower(name);
         if (output) printf("-p%d # \"%s\"\n", i, name);
@@ -138,7 +142,7 @@ static int MA_audio_list(char *what, char *filter) {
             char *needle = lfilter;
             char *haystack = name;
             if (strstr(haystack, needle)) {
-                // printf("<%s> found in <%s> -> %d\n", needle, haystack, i);
+                printf("# <%s> found in <%s> -> %d\n", needle, haystack, i);
                 return i;
             }
         }
@@ -195,6 +199,7 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
         //
     } else if (playback >= pbmax) return 0;
 
+    capture = -1; // disable capture for now
     if (indev) {
       puts("duplex");
       config = ma_device_config_init(ma_device_type_duplex);
@@ -457,6 +462,7 @@ char *audio_playbackname(int i) {
 }
 
 char *audio_capturename(int i) {
+  return "?";
   #ifdef USE_ALSA
   return "?"
   #else
