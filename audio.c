@@ -37,7 +37,7 @@ static int audio_is_running = 0;
 #define MINIAUDIO_IMPLEMENTATION
 
 #define MA_NO_JACK
-//#define MA_NO_PULSEAUDIO
+#define MA_NO_PULSEAUDIO
 
 #include "miniaudio.h"
 
