@@ -363,32 +363,19 @@ int16_t wave_next(int voice) {
     return sample;
 }
 
-void new_wave_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
-    // this is a mess... needs thinking and fixing
-    EXS_FREQWPTR(voice) = ptr;
-    EXS_FREQSIZE(voice) = len;
-    EXS_FREQONE(voice) = oneshot;
-    EXS_FREQACTIVE(voice) = forceactive;
-    if (base != EXS_FREQBASE(voice)) {
-        EXS_FREQ(voice) = 440;
-        EXS_FREQBASE(voice) = base;
-        wave_freq(voice, EXS_FREQ(voice));
-    }
-}
-
-void wave_extra(int voice, int16_t *ptr, int len, char oneshot, char active, double base) {
+void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
     if (!ptr) return;
     if (!len) return;
     EXS_FREQWPTR(voice) = ptr;
     EXS_FREQSIZE(voice) = len;
-    EXS_FREQONE(voice) = oneshot;
     if (active) {
         EXS_FREQACTIVE(voice) = 1;
     }
     int wave = EXS_WAVE(voice);
     if (wave == EXWAVEPCM) {
         int patch = EXS_PATCH(voice);
-        printf("v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
+        EXS_FREQONE(voice) = uwave_one[patch];
+        printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
             voice,
             wave,
             patch,
@@ -397,6 +384,8 @@ void wave_extra(int voice, int16_t *ptr, int len, char oneshot, char active, dou
             uwave_one[patch],
             active,
             uwave_freq[patch]);
+    } else {
+      EXS_FREQONE(voice) = 0;
     }
     if (base != EXS_FREQBASE(voice)) {
         EXS_FREQBASE(voice) = base;
@@ -694,10 +683,12 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].attack_level,
         env[voice].sustain_level);
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
+    if (EXS_SH(voice)) printf(" b%d", EXS_SH(voice));
     if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
-    if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d b%d", EXS_PATCH(voice), EXS_FREQONE(voice)==0);
+    printf(" b%d", EXS_FREQONE(voice)==0);
+    if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
-    printf(" acc:%"PRIu64" inc:%f len:%d div:%d b:%f",
+    printf(" acc:%"PRIu64" inc:%f len:%d div:%d freq:%f",
         (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
         EXS_FREQSIZE(voice),
@@ -706,7 +697,22 @@ void show_voice(char flag, int voice, char forceshow) {
     puts("");
 }
 
+int iswavinuse(int i) {
+    int r = 0;
+    for (int v=0; v<VOICES; v++) {
+        if (EXS_PATCH(v) == i) {
+            r = 1;
+            break;
+        }
+    }
+    return r;
+}
+
 int getwav(int i) {
+    if (iswavinuse(i)) {
+        printf("P%d is in use, cannot free\n", i);
+        return 0;
+    }
     char name[64];
     sprintf(name, "%03d.wav", i);
     int frames = mw_frames(name);
@@ -719,7 +725,7 @@ int getwav(int i) {
         int16_t *dest = malloc(frames * sizeof(int16_t));
         uwave[i] = dest;
         uwave_size[i] = frames;
-        uwave_one[i] = 0;
+        uwave_one[i] = 1;
         uwave_freq[i] = 440.0;
         int n = mw_get(name, dest, frames);
         strcpy(uwave_name[i], name);
@@ -980,14 +986,14 @@ int wire(char *line, int *thisvoice) {
                     wave_extra(
                       voice,
                       uwave[patch],
-                      uwave_size[patch], uwave_one[patch], active, uwave_freq[patch]);
+                      uwave_size[patch], active, uwave_freq[patch]);
                 }
             }
         } else if (c == 'P') {
             for (int patch=0; patch<100; patch++) {
                 if (uwave[patch] && uwave_size[patch]) {
-                    printf("p%d # %s %d\n", patch,
-                        uwave_name[patch], uwave_size[patch]);
+                    printf("# p%d # %s %d one:%d\n", patch,
+                        uwave_name[patch], uwave_size[patch], uwave_one[patch]);
                 }
             }
         } else if (c == 'w') {
@@ -998,7 +1004,6 @@ int wire(char *line, int *thisvoice) {
                 int16_t *ptr = pwave_none;
                 int len = 0;
                 double base = 0;
-                char oneshot = 0;
                 char forceactive = 0;
                 switch (w) {
                     case EXWAVESINE:
@@ -1037,7 +1042,6 @@ int wire(char *line, int *thisvoice) {
                         ptr = uwave[EXS_PATCH(voice)];
                         len = uwave_size[EXS_PATCH(voice)];
                         base = 440.0;
-                        oneshot = uwave_one[EXS_PATCH(voice)];
                         break;
                     case EXWAVEUSR1: // algo
                         break;
@@ -1049,7 +1053,7 @@ int wire(char *line, int *thisvoice) {
                         puts("UNEXPECTED");
                         break;
                 }
-                wave_extra(voice, ptr, len, oneshot, forceactive, base);
+                wave_extra(voice, ptr, len, forceactive, base);
             }
         
         } else if (c == 'n') {
@@ -1308,6 +1312,7 @@ int main(int argc, char *argv[]) {
         uwave[i] = NULL;
         uwave_size[i] = 0;
         uwave_name[i][0] = '\0';
+        uwave_one[i] = 1;
     }
 
     printf("# voices %d\n", VOICES);
