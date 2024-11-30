@@ -323,11 +323,16 @@ enum {
 #define DDS_MAGIC (0.32874)
 
 void wave_freq(int voice, double f) {
-    if (EXS_FREQBASE(voice) > 0) {
-        // how to adjust for the real base...
-        f = (f / EXS_FREQBASE(voice)) * DDS_MAGIC; // the magic number is magic... i found it via experimentation but need to learn what it means
+    if (EXS_WAVE(voice) == EXWAVEPCM) {
+        EXS_FREQINC(voice) = (int32_t)((f / 440.0) * DDS_SCALE);
+    } else {
+        EXS_FREQINC(voice) = (int32_t)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
     }
-    EXS_FREQINC(voice) = (int32_t)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
+    // if (EXS_FREQBASE(voice) > 0) {
+    //     // how to adjust for the real base...
+    //     f = (f / EXS_FREQBASE(voice)) * DDS_MAGIC; // the magic number is magic... i found it via experimentation but need to learn what it means
+    // }
+    // EXS_FREQINC(voice) = (int32_t)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
 }
 
 void wave_init(int voice, uint32_t size, double f, int16_t *w, int n) {
@@ -359,6 +364,7 @@ int16_t wave_next(int voice) {
 }
 
 void new_wave_extra(int voice, int16_t *ptr, int len, char oneshot, char forceactive, double base) {
+    return;
     // this is a mess... needs thinking and fixing
     EXS_FREQWPTR(voice) = ptr;
     EXS_FREQSIZE(voice) = len;
