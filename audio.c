@@ -134,7 +134,7 @@ static int MA_audio_list(char *what, char *filter) {
       return atoi(filter);
     }
     for (i=0; i<playbackCount; i++) {
-        printf("# [%d] <%s>\n", i, pPlaybackInfos[i].name);
+        // printf("# [%d] <%s>\n", i, pPlaybackInfos[i].name);
         strcpy(name, pPlaybackInfos[i].name);
         strlower(name);
         if (output) printf("-p%d # \"%s\"\n", i, name);

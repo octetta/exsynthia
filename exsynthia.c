@@ -22,7 +22,7 @@
 
 #include <sys/time.h>
 
-#define CYCLE_1HZ (SAMPLE_RATE * 1)
+#define CYCLE_1HZ (SAMPLE_RATE * 2)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
 #define VOICES (24)
