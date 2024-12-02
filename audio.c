@@ -462,7 +462,7 @@ char *audio_playbackname(int i) {
 }
 
 char *audio_capturename(int i) {
-  return "?";
+  //return "?";
   #ifdef USE_ALSA
   return "?"
   #else

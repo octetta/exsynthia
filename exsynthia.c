@@ -192,6 +192,7 @@ int oe[VOICES];
 #define EXS_INTERP(voice)     exvoice[voice][EXINTERP].b
 #define EXS_NOTE(voice)       exvoice[voice][EXNOTE].f
 #define EXS_PATCH(voice)      exvoice[voice][EXPATCH].i
+#define EXS_PAN(voice)        exvoice[voice][EXPAN].f
 
 enum {
     EXWAVE,  // waveform index
@@ -237,9 +238,9 @@ enum {
     // EXAMPEG,
     // EXAMPEGAMT,
     //
-    // EXPAN,     // double for human -1=left, 0=center, 1=right
-    // EXPANLEFT  // i16 calculated from EXPAN
-    // EXPANRIGHT // i16 calculated from EXPAN
+    EXPAN,     // double for human 0=left, .5=center, 1=right
+    //EXPANLEFT,  // i16 calculated from EXPAN
+    //EXPANRIGHT, // i16 calculated from EXPAN
     //
     // EXPANMOD,
     // EXPANMODAMT,
@@ -287,18 +288,6 @@ union ExVoice {
 union ExVoice exvoice[VOICES][EXMAXCOLS];
 
 // inspired by AMY :)
-// #define SINE 0
-// #define SQR  1
-// #define SAWD 2
-// #define SAWU 3
-// #define TRI  4
-// #define NOIZ 5
-// #define USR0 6
-// #define PCM  7
-// #define USR1 8
-// #define USR2 9
-// #define USR3 10
-// #define NONE 11
 
 enum {
     EXWAVESINE,
@@ -686,6 +675,7 @@ void show_voice(char flag, int voice, char forceshow) {
     if (EXS_SH(voice)) printf(" b%d", EXS_SH(voice));
     if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
     printf(" b%d", EXS_FREQONE(voice)==0);
+    printf(" Q%g", EXS_PAN(voice));
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d freq:%f",
@@ -1056,6 +1046,10 @@ int wire(char *line, int *thisvoice) {
                 wave_extra(voice, ptr, len, forceactive, base);
             }
         
+        } else if (c == 'Q') {
+            double pan = mytod(&line[p], &valid, &next);
+            if (!valid) break; else p += next-1;
+            EXS_PAN(voice) = pan;
         } else if (c == 'n') {
             double note = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1088,12 +1082,6 @@ int wire(char *line, int *thisvoice) {
                     case EXWAVEUSR1:
                     case EXWAVEUSR2:
                     case EXWAVEUSR3:
-                        // int which = n - NOIZ - 1;
-                        // printf("which:%d\n", which);
-                        // printf("ptr:%p len:%d\n", usrwav[which], usrlen[which]);
-                        // if (usrlen[which] > 0 && usrwav[which]) {
-                        //     dump(usrwav[which], usrlen[which]);
-                        // }
                         break;
                 }
             } else {
@@ -1108,10 +1096,6 @@ int wire(char *line, int *thisvoice) {
                 printf("%d usr1\n", EXWAVEUSR1);
                 printf("%d usr2\n", EXWAVEUSR2);
                 printf("%d capture\n", EXWAVEUSR3);
-                // for (int i=NOIZ+1; i<PWAVEMAX-1; i++) {
-                //     int n = i-NOIZ-1;
-                //     printf("%d usr%d (%s/%d)\n", i, n, usrnam[n], usrlen[n]);
-                // }
             }
         } else if (c == 'L') {
             trigger_active();
@@ -1214,10 +1198,11 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
             if (EXS_AMP(i) == 0.0) continue;
             if (EXS_AMPTOP(i) == 0 || EXS_AMPBOT(i) == 0) continue;
             if (capture && EXS_WAVE(i) == EXWAVEUSR3) {
-              b = capture[i*2];
+              b = (capture[i*2] + capture[i*2+1]) / 2; // this assumes capture is stereo !?!
             } else {
-              b = (wave_next(i)) * EXS_AMPTOP(i) / EXS_AMPBOT(i);
+              b = wave_next(i);
             }
+            b = b * EXS_AMPTOP(i) / EXS_AMPBOT(i);
             if (EXS_FREQMOD(i) >= 0) {
                 wave_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(EXS_FREQMOD(i)));
             }
@@ -1354,7 +1339,7 @@ int main(int argc, char *argv[]) {
 
     printf("# using playback device %d -> \"%s\"\n", playbackindex, audio_playbackname(playbackindex));
     printf("# using capture device %d -> \"%s\"\n", captureindex, audio_capturename(captureindex));
-    if (audio_open(theplayback, NULL, SAMPLE_RATE, BUFFER_SIZE) != 0) {
+    if (audio_open(theplayback, thecapture, SAMPLE_RATE, BUFFER_SIZE) != 0) {
         puts("WTF?");
     } else {
       audio_start(engine);
