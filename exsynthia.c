@@ -1113,10 +1113,10 @@ int wire(char *line, int *thisvoice) {
                 }
             } else if (velocity > 0.0) {
                 EXS_FREQACC(voice) = 0;
-                EXS_FREQACTIVE(voice) = 1;
                 EXS_AMP(voice) = velocity;
                 calc_ratio(voice);
                 env_on(&env[voice]);
+                EXS_FREQACTIVE(voice) = 1;
             }
         } else if (c == '[') {
             int x = mytol(&line[p], &valid, &next);
