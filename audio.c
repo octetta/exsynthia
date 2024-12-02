@@ -61,6 +61,12 @@ static int capmax = -1;
 
 static char MA_started = 0;
 
+static char _audio_state_string[128] = "not-running";
+
+char *audio_state(void) {
+  return _audio_state_string;
+}
+
 int MA_init(void) {
     if (MA_started) return 0;
     MA_started = 1;
@@ -201,10 +207,10 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
 
     capture = -1; // disable capture for now
     if (indev) {
-      puts("duplex");
+      strcpy(_audio_state_string, "running-duplex");
       config = ma_device_config_init(ma_device_type_duplex);
     } else {
-      puts("playback");
+      strcpy(_audio_state_string, "running-playback-only");
       config = ma_device_config_init(ma_device_type_playback);
     }
   if (capture >= 0) {

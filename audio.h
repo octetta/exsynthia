@@ -15,6 +15,7 @@ int audio_stop(void);
 void audio_close(void);
 char *audio_playbackname(int i);
 char *audio_capturename(int i);
+char *audio_state(void);
 
 extern struct timeval rtns0;
 extern struct timeval rtns1;

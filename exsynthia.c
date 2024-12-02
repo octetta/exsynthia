@@ -1159,9 +1159,11 @@ int wire(char *line, int *thisvoice) {
 void *user(void *arg) {
     int voice = 0;
     linenoiseHistoryLoad(HISTORY_FILE);
+    usleep(5 * 100 * 1000);
     while (1) {
         char *line = linenoise("> ");
         if (line == NULL) break;
+        if (strlen(line) == 0) continue;
         linenoiseHistoryAdd(line);
         int n = wire(line, &voice);
         linenoiseFree(line);
@@ -1342,6 +1344,7 @@ int main(int argc, char *argv[]) {
     if (audio_open(theplayback, thecapture, SAMPLE_RATE, BUFFER_SIZE) != 0) {
         puts("WTF?");
     } else {
+      printf("# audio state %s\n", audio_state());
       audio_start(engine);
       while (audio_running() && user_running()) {
         sleep(1);
