@@ -471,6 +471,8 @@ void user_stop(void) {
     _user_running = 0;
 }
 
+int wire(char *line, int *thisvoice, char output);
+
 int etf_fdin = -1;
 int etf_fdout = -1;
 
@@ -488,7 +490,7 @@ void *etf(void *arg) {
             if (tuple.count == 0) {
                 puts("{}");
             } else if (strcmp(tuple.key, "wire") == 0) {
-                //int r = wire(line, &voice);
+                //int r = wire(line, &voice, 0);
                 if (tuple.type == etf_list) {
                     printf("LIST[%d]\n", tuple.len);
                 }
@@ -499,7 +501,52 @@ void *etf(void *arg) {
     return NULL;
 }
 
+#define PORT 60440
 
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+
+struct sockaddr_in serve;
+
+int udp_open(int port) {
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    //global_sock = sock;
+    int opt = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
+    bzero(&serve, sizeof(serve));
+    serve.sin_family = AF_INET;
+    serve.sin_addr.s_addr = htonl(INADDR_ANY);
+    serve.sin_port = htons(port);
+    if (bind(sock, (struct sockaddr *)&serve, sizeof(serve)) >= 0) {
+        return sock;
+    }
+    return -1;  
+}
+
+void *udp(void *arg) {
+    int sock = udp_open(PORT);
+    if (sock < 0) {
+      puts("udp thread cannot run");
+      return NULL;
+    }
+    int voice = 0;
+    struct sockaddr_in client;
+    unsigned int client_len = sizeof(client);
+    char line[1024];
+    while (user_running()) {
+        int n = recvfrom(sock, line, sizeof(line), 0, (struct sockaddr *)&client, &client_len);
+        if (n > 0) {
+          line[n] = '\0';
+          int r = wire(line, &voice, 0);
+        } else {
+          perror("recvfrom");
+        }
+    }
+    return NULL;
+}
 
 void dump(int16_t *wave, int len) {
     int c = 0;
@@ -723,7 +770,6 @@ int getwav(int i) {
     return 0;
 }
 
-int wire(char *line, int *thisvoice);
 
 void trigger_active(void) {
     for (int voice=0; voice<VOICES; voice++) {
@@ -755,7 +801,7 @@ void trigger_active(void) {
         sprintf(wstr, "v%dw%df%sl%s", voice, wave, fptr, lptr);
         printf("# -> %s\n", wstr);
 
-        wire(wstr, &copyvoice);
+        wire(wstr, &copyvoice, 0);
         #else
         if (velocity > 0.0) {
             printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n",
@@ -772,7 +818,7 @@ void trigger_active(void) {
     } 
 }
 
-int wire(char *line, int *thisvoice) {
+int wire(char *line, int *thisvoice, char output) {
     int p = 0;
     int valid;
     int voice = 0;
@@ -796,7 +842,7 @@ int wire(char *line, int *thisvoice) {
                   int ms = mytol(&line[p], &valid, &next);
                   if (!valid) goto errexit;
                   p += next-1;
-                  printf("# capture for %dms\n", ms);
+                  if (output) printf("# capture for %dms\n", ms);
                 }
                 break;
               case 'p':
@@ -816,7 +862,7 @@ int wire(char *line, int *thisvoice) {
             switch (peek) {
                 case 'c':
                     p++;
-                    printf("%c[2J%c[H\n", 27, 27);
+                    if (output) printf("%c[2J%c[H\n", 27, 27);
                     break;
                 case 'q':
                     p++;
@@ -855,8 +901,8 @@ int wire(char *line, int *thisvoice) {
                 // printf("# btms %ldms\n", btms);
                 // printf("# diff %ldms\n", btms-rtms);
                 // printf("# L%d\n", latency_hack_ms);
-                printf("# -d%s\n", theplayback);
-                printf("# frames sent %lld\n", frames_sent);
+                if (output) printf("# -d%s\n", theplayback);
+                if (output) printf("# frames sent %lld\n", frames_sent);
             } else {
                 int i = voice;
                 char flag = ' ';
@@ -982,7 +1028,7 @@ int wire(char *line, int *thisvoice) {
         } else if (c == 'P') {
             for (int patch=0; patch<100; patch++) {
                 if (uwave[patch] && uwave_size[patch]) {
-                    printf("# p%d # %s %d one:%d\n", patch,
+                    if (output) printf("# p%d # %s %d one:%d\n", patch,
                         uwave_name[patch], uwave_size[patch], uwave_one[patch]);
                 }
             }
@@ -1085,6 +1131,7 @@ int wire(char *line, int *thisvoice) {
                         break;
                 }
             } else {
+                if (output) {
                 printf("%d sine\n", EXWAVESINE);
                 printf("%d square\n", EXWAVESQR);
                 printf("%d sawtoothdown\n", EXWAVESAWDN);
@@ -1096,6 +1143,7 @@ int wire(char *line, int *thisvoice) {
                 printf("%d usr1\n", EXWAVEUSR1);
                 printf("%d usr2\n", EXWAVEUSR2);
                 printf("%d capture\n", EXWAVEUSR3);
+                }
             }
         } else if (c == 'L') {
             trigger_active();
@@ -1124,7 +1172,7 @@ int wire(char *line, int *thisvoice) {
             char filename[1024];
             int localvoice = voice;
             sprintf(filename, "patch.%03d", x);
-            printf("# try to load %s\n", filename);
+            if (output) printf("# try to load %s\n", filename);
             FILE *file = fopen(filename, "r");
             if (file != NULL) {
                 char look[1000];
@@ -1132,8 +1180,8 @@ int wire(char *line, int *thisvoice) {
                     int n = strlen(look);
                     if (n > 0) {
                         look[n-1] = '\0';
-                        printf("# %s\n", look);
-                        int r = wire(look, &localvoice);
+                        if (output) printf("# %s\n", look);
+                        int r = wire(look, &localvoice, 0);
                         // printf("result = %d\n", r);
                     }
                 }
@@ -1146,7 +1194,7 @@ int wire(char *line, int *thisvoice) {
     }
     errexit: // if something bad happened, i hope you set valid == 0
     if (!valid) {
-        printf("trouble -> %s\n", &line[p-1]);
+        if (output) printf("trouble -> %s\n", &line[p-1]);
     }
     if (thisvoice) {
         *thisvoice = voice;
@@ -1165,7 +1213,7 @@ void *user(void *arg) {
         if (line == NULL) break;
         if (strlen(line) == 0) continue;
         linenoiseHistoryAdd(line);
-        int n = wire(line, &voice);
+        int n = wire(line, &voice, 1);
         linenoiseFree(line);
     }
     linenoiseHistorySave(HISTORY_FILE);
@@ -1334,6 +1382,9 @@ int main(int argc, char *argv[]) {
     pthread_create(&etf_thread, NULL, etf, NULL);
     pthread_detach(etf_thread);
 
+    pthread_t udp_thread;
+    pthread_create(&udp_thread, NULL, udp, NULL);
+
     gettimeofday(&rtns0, NULL);
     fflush(stdout);
 
@@ -1352,8 +1403,13 @@ int main(int argc, char *argv[]) {
       audio_close();
     }
 
+    pthread_cancel(user_thread);
+    pthread_cancel(etf_thread);
+    pthread_cancel(udp_thread);
+
     pthread_join(user_thread, NULL);
     pthread_join(etf_thread, NULL);
+    pthread_join(udp_thread, NULL);
 
     return 0;
 }
