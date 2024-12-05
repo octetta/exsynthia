@@ -364,6 +364,7 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
     if (wave == EXWAVEPCM) {
         int patch = EXS_PATCH(voice);
         EXS_FREQONE(voice) = uwave_one[patch];
+#if 0
         printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
             voice,
             wave,
@@ -373,6 +374,7 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
             uwave_one[patch],
             active,
             uwave_freq[patch]);
+#endif
     } else {
       EXS_FREQONE(voice) = 0;
     }
@@ -745,18 +747,18 @@ int iswavinuse(int i) {
     return r;
 }
 
-int getwav(int i) {
+int getwav(int i, char output) {
     if (iswavinuse(i)) {
-        printf("P%d is in use, cannot free\n", i);
+        if (output) printf("P%d is in use, cannot free\n", i);
         return 0;
     }
     char name[64];
     sprintf(name, "%03d.wav", i);
     int frames = mw_frames(name);
     if (frames > 0) {
-        printf("%s has %d frames\n", name, frames);
+        if (output) printf("%s has %d frames\n", name, frames);
         if (uwave[i]) {
-            printf("free W%d\n", i);
+            if (output) printf("free W%d\n", i);
             free(uwave[i]);
         }
         int16_t *dest = malloc(frames * sizeof(int16_t));
@@ -851,7 +853,7 @@ int wire(char *line, int *thisvoice, char output) {
                 int n = mytol(&line[p], &valid, &next);
                 if (!valid) goto errexit;
                 p += next-1;
-                getwav(n);
+                getwav(n, output);
                 break;
               default:
                 valid = 0;
@@ -895,7 +897,7 @@ int wire(char *line, int *thisvoice, char output) {
                 for (int i=0; i<VOICES; i++) {
                     char flag = ' ';
                     if (i == voice) flag = '*';
-                    show_voice(flag, i, 0);
+                    if (output) show_voice(flag, i, 0);
                 }
                 // printf("# rtms %ldms\n", rtms);
                 // printf("# btms %ldms\n", btms);
@@ -907,7 +909,7 @@ int wire(char *line, int *thisvoice, char output) {
                 int i = voice;
                 char flag = ' ';
                 if (i == voice) flag = '*';
-                show_voice(flag, i, 1);
+                if (output) show_voice(flag, i, 1);
             }
             continue;
         } else if (c == 'Z') {
