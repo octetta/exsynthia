@@ -1,0 +1,32 @@
+S65 # reset everything
+v0w1n30 # square wave MIDI note 30
+# LPF and AMP via ADSR
+v0F2500R5A100,0.5,2000,.26,3000,0.1,5000,0.0T8G1
+# key on, then 4500ms later key-off
+v0l1;+4500v0l0
+# sampled waveform filter ADSR example
+<'07045242.wav
+*
+)67
+v1w7p67b1
+v1l5;+3000v1l0
+v1F2500R5T8G1
+v1A100,0.5,1000,0.1,1500,1.25,2000,0.75,2800,0.1,5000,0
+v1l1;+2500v1l0
+# various puzzles to solve for learning
+v2w0l.5f.25P.5
+v3w0l0A500,0,0,0T2g4L2
+v3f110l5
+v3f55l10
+v4w5A250,0,0,0T1F7000R7G1
+v4l1
+v5w7p6l3
+/-
+/1=v3l5
+/2=v5l3;+125v5l2
+/3=v4l2
+/4=v5l3
+/5=/1
+/1
+v3f70
+v4F500

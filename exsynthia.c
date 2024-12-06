@@ -721,12 +721,11 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].attack_level,
         env[voice].sustain_level);
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
-    if (EXS_SH(voice)) printf(" b%d", EXS_SH(voice));
     if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
     printf(" b%d", EXS_FREQONE(voice)==0);
-    printf(" Q%g", EXS_PAN(voice));
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
+    printf(" Q%g", EXS_PAN(voice));
     printf(" acc:%"PRIu64" inc:%f len:%d div:%d freq:%f",
         (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
@@ -818,6 +817,21 @@ void trigger_active(void) {
         }
         #endif
     } 
+}
+
+void reset_voice(int v) {
+  EXS_WAVE(v) = EXWAVESINE;
+  EXS_AMPTOP(v) = 0;
+  EXS_AMPBOT(v) = 0;
+  EXS_FREQMOD(v) = -1;
+  EXS_FREQ(v) = 440;
+  EXS_SH(v) = 0;
+  EXS_SHI(v) = 0;
+  EXS_ISMOD(v) = 0;
+  EXS_AMP(v) = 0;
+  calc_ratio(v);
+  wave_init(v, sizeof(pwave_sin)/sizeof(int16_t), EXS_FREQ(v), pwave_sin, v);
+  EXS_FREQACTIVE(v) = 0;
 }
 
 int wire(char *line, int *thisvoice, char output) {
@@ -931,13 +945,13 @@ int wire(char *line, int *thisvoice, char output) {
         } else if (c == 'S') {
             int v = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            EXS_WAVE(v) = EXWAVESINE;
-            EXS_AMPTOP(v) = 0;
-            EXS_AMPBOT(v) = 0;
-            EXS_FREQMOD(v) = -1;
-            EXS_FREQ(v) = 440;
-            EXS_SH(v) = 0;
-            EXS_ISMOD(v) = 0;
+            if (v >= VOICES) {
+              for (int i=0; i<VOICES; i++) {
+                reset_voice(i);
+              }
+            } else {
+                reset_voice(v);
+            }
         } else if (c == 'F') {
             int f = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1354,15 +1368,7 @@ int main(int argc, char *argv[]) {
 
     printf("# voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {
-        EXS_FREQ(i) = 440.0;
-        EXS_FREQMOD(i) = -1;
-        EXS_ISMOD(i) = 0;
-        EXS_WAVE(i) = EXWAVESINE;
-        EXS_SH(i) = 0;
-        EXS_SHI(i) = 0;
-        wave_init(i, sizeof(pwave_sin)/sizeof(int16_t), EXS_FREQ(i), pwave_sin, i);
-        EXS_AMP(i) = 0;
-        calc_ratio(i);
+        reset_voice(i);
     }
 
     for (int i=0; i<VOICES; i+=1) {
