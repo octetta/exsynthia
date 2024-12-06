@@ -772,7 +772,7 @@ int getwav(int i, char output) {
 }
 
 
-void trigger_active(void) {
+void trigger_active(char output) {
     for (int voice=0; voice<VOICES; voice++) {
         double velocity = EXS_AMP(voice);
         double freq = EXS_FREQ(voice);
@@ -800,13 +800,12 @@ void trigger_active(void) {
         }
 
         sprintf(wstr, "v%dw%df%sl%s", voice, wave, fptr, lptr);
-        printf("# -> %s\n", wstr);
+        if (output) printf("# -> %s\n", wstr);
 
         wire(wstr, &copyvoice, 0);
         #else
         if (velocity > 0.0) {
-            printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n",
-                voice, wave, freq, velocity, top, bot);
+            if (output) printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n", voice, wave, freq, velocity, top, bot);
             EXS_FREQACC(voice) = 0;
             EXS_FREQACTIVE(voice) = 1;
             calc_ratio(voice);
@@ -1162,7 +1161,7 @@ int wire(char *line, int *thisvoice, char output) {
                 }
             }
         } else if (c == 'L') {
-            trigger_active();
+            trigger_active(output);
         } else if (c == 'l') {
             double velocity = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
