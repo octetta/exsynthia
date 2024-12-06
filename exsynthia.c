@@ -140,11 +140,10 @@ void signal_handler(int sig) {
     }
 }
 
-#if 0
+#if 1
 // TODO
-int note[VOICES];
-int gate[VOICES];
-int note_active[VOICES];
+int Note_active[VOICES];
+double Env_level[VOICES];
 
 double envelope(
     int *note_active, int gate, double *env_level, double t,
