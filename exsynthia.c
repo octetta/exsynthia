@@ -141,7 +141,6 @@ void signal_handler(int sig) {
 }
 
 #if 1
-// TODO
 int Note_active[VOICES];
 double Env_level[VOICES];
 
@@ -184,9 +183,8 @@ void env_off(int v) {
 double oft[VOICES];
 int ofg[VOICES];
 double ofgd[VOICES];
-int oe[VOICES];
-// int op[VOICES];
 
+#define EXS_GATE(voice)       exvoice[voice][EXGATE].b
 #define EXS_WAVE(voice)       exvoice[voice][EXWAVE].i
 #define EXS_ISMOD(voice)      exvoice[voice][EXISMOD].b
 #define EXS_FREQ(voice)       exvoice[voice][EXFREQ].f
@@ -279,6 +277,8 @@ enum {
     //
     // EXFILTEGCUT,
     // EXFILTEGCUTAMT,
+    //
+    EXGATE,
     //
     EXMAXCOLS,
 };
@@ -604,7 +604,7 @@ void show_voice(char flag, int voice, char forceshow) {
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
     if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
 #if 0
-    if (oe[voice]) printf(" e%d B%d,%d,%d,%d,%d", oe[voice],
+    if (EXS_GATE(voice)) printf(" e%d B%d,%d,%d,%d,%d", EXS_GATE(voice),
         env[voice].attack_ms,
         env[voice].decay_ms,
         env[voice].release_ms,
@@ -878,10 +878,10 @@ int wire(char *line, int *thisvoice, char output) {
             char peek = line[p];
             if (peek == '0') {
                 p++;
-                oe[voice] = 0;
+                EXS_GATE(voice) = 0;
             } else if (peek == '1') {
                 p++;
-                oe[voice] = 1;
+                EXS_GATE(voice) = 1;
             } else {
                 continue;
             }
@@ -1058,7 +1058,7 @@ int wire(char *line, int *thisvoice, char output) {
             velocity *= 0.025;
             if (velocity <= 0.0) {
                 if (EXS_FREQONE(voice)) EXS_FREQACTIVE(voice) = 0;
-                if (oe[voice]) {
+                if (EXS_GATE(voice)) {
                     env_off(voice);
                 } else {
                     EXS_AMP(voice) = 0.0;
@@ -1162,9 +1162,10 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
                 wave_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(EXS_FREQMOD(i)));
             }
             // TODO... the eg next should have happened earlier. this should apply that value if enabled
-            if (oe[i]) {
+            if (EXS_GATE(i)) {
                 int32_t envelope_value = env_next(i);
-                int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
+                //int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
+                int32_t sample = (b * envelope_value);
                 b = sample;
             }
             if (EXS_SH(i)) {
