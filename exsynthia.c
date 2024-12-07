@@ -161,6 +161,24 @@ double envelope(
     }
 }
 
+int32_t env_next(int v) {
+  return 1;
+}
+  
+void env_init(int v,
+    uint32_t attack_ms,
+    uint32_t decay_ms,
+    uint32_t release_ms,
+    uint32_t attack_level,
+    uint32_t sustain_level) {
+}
+
+void env_on(int v) {
+}
+
+void env_off(int v) {
+}
+
 #endif
 
 double oft[VOICES];
@@ -567,139 +585,11 @@ void dump(int16_t *wave, int len) {
     close(fd);
 }
 
-// simple ADSR
-
-#include <stdint.h>
-#include <stdbool.h>
-
 // Fixed point configuration
 // Q17.15
 #define ENV_FRAC_BITS 14
 #define ENV_SCALE (1 << ENV_FRAC_BITS)
 #define ENV_MAX INT32_MAX
-
-enum {
-    ENV_IDLE,
-    ENV_ATTACK,
-    ENV_DECAY,
-    ENV_SUSTAIN,
-    ENV_RELEASE
-};
-
-typedef struct {
-    int32_t attack_rate;   
-    int32_t decay_rate;    
-    int32_t release_rate;  
-    int32_t attack_level;  
-    int32_t sustain_level;
-    
-    uint32_t attack_ms;
-    uint32_t decay_ms;
-    uint32_t release_ms;
-
-    int stage;
-    int last_stage;
-
-    int32_t current_level;
-    int32_t last_level;
-    bool note_on;
-} env_t;
-
-void env_init(env_t* env,
-    uint32_t attack_ms,
-    uint32_t decay_ms,
-    uint32_t release_ms,
-    uint32_t attack_level,
-    uint32_t sustain_level) {
-    env->last_level = -1;
-    env->attack_ms = attack_ms;
-    env->decay_ms = decay_ms;
-    env->release_ms = release_ms;
-
-    env->attack_level = attack_level;
-    env->sustain_level = sustain_level;
-    
-    // Calculate number of samples for each phase
-    uint32_t attack_samples = (attack_ms * SAMPLE_RATE) / 1000;
-    uint32_t decay_samples = (decay_ms * SAMPLE_RATE) / 1000;
-    uint32_t release_samples = (release_ms * SAMPLE_RATE) / 1000;
-
-    if (attack_samples == 0) attack_samples = 1;
-    if (decay_samples == 0) decay_samples = 1;
-    if (release_samples == 0) release_samples = 1;
-    
-    // Calculate rates ensuring we don't get zero due to fixed point math
-    // Rate = target_change_in_level / num_samples
-    env->attack_rate = env->attack_level / attack_samples;
-    if (env->attack_rate == 0) env->attack_rate = 1;  // Ensure minimum rate
-    
-    env->decay_rate = (env->attack_level - env->sustain_level) / decay_samples;
-    if (env->decay_rate == 0) env->decay_rate = 1;
-    
-    env->release_rate = env->sustain_level / release_samples;
-    if (env->release_rate == 0) env->release_rate = 1;
-    
-    env->stage = ENV_IDLE;
-    env->current_level = 0;
-    env->note_on = false;
-}
-
-void env_on(env_t* env) {
-    env->last_stage = ENV_IDLE;
-    env->note_on = true;
-    env->stage = ENV_ATTACK;
-}
-
-void env_off(env_t* env) {
-    env->note_on = false;
-    env->stage = ENV_RELEASE;
-}
-
-int16_t env_next(env_t* env) {
-    if (env->last_stage != env->stage) {
-        printf("ENV %d -> %d (%d)\n", env->last_stage, env->stage, env->current_level);
-        env->last_stage = env->stage;
-    }
-    switch (env->stage) {
-        case ENV_IDLE:
-            env->current_level = 0;
-            break; 
-        case ENV_ATTACK:
-            env->current_level += env->attack_rate;
-            if (env->current_level >= env->attack_level) {
-                env->current_level = env->attack_level;
-                env->stage = ENV_DECAY;
-            }
-            break;
-        case ENV_DECAY:
-            env->current_level -= env->decay_rate;
-            if (env->current_level <= env->sustain_level) {
-                env->current_level = env->sustain_level;
-                env->stage = ENV_SUSTAIN;
-            }
-            break;
-        case ENV_SUSTAIN:
-            if (!env->note_on) {
-                env->stage = ENV_RELEASE;
-            }
-            break;
-        case ENV_RELEASE:
-            env->current_level -= env->release_rate;
-            if (env->current_level <= 0) {
-                env->current_level = 0;
-                env->stage = ENV_IDLE;
-            }
-            break;
-    }
-    // Convert to 16-bit signed integer range
-    if (env->current_level != env->last_level) {
-        printf("%d\n", env->current_level);
-        env->last_level = env->current_level;
-    }
-    return ((env->current_level * ENV_MAX) >> ENV_FRAC_BITS);
-}
-
-env_t env[VOICES];
 
 #define AFACTOR (0.025) // scaling amplitude to match what i hear from AMY
 
@@ -713,12 +603,14 @@ void show_voice(char flag, int voice, char forceshow) {
     if (EXS_INTERP(voice)) printf(" Z1");
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
     if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
+#if 0
     if (oe[voice]) printf(" e%d B%d,%d,%d,%d,%d", oe[voice],
         env[voice].attack_ms,
         env[voice].decay_ms,
         env[voice].release_ms,
         env[voice].attack_level,
         env[voice].sustain_level);
+#endif
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
     if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
     printf(" b%d", EXS_FREQONE(voice)==0);
@@ -807,7 +699,7 @@ void trigger_active(char output) {
             EXS_FREQACC(voice) = 0;
             EXS_FREQACTIVE(voice) = 1;
             calc_ratio(voice);
-            env_on(&env[voice]);
+            env_on(voice);
         }
         if (freq > 0.0) {
             wave_freq(voice, freq);
@@ -981,7 +873,7 @@ int wire(char *line, int *thisvoice, char output) {
             if (!valid) break; else p += next-1;
 
             // use the values
-            env_init(&env[voice],a,d,r, al, sl);
+            env_init(voice,a,d,r, al, sl);
         } else if (c == 'e') {
             char peek = line[p];
             if (peek == '0') {
@@ -1167,7 +1059,7 @@ int wire(char *line, int *thisvoice, char output) {
             if (velocity <= 0.0) {
                 if (EXS_FREQONE(voice)) EXS_FREQACTIVE(voice) = 0;
                 if (oe[voice]) {
-                    env_off(&env[voice]);
+                    env_off(voice);
                 } else {
                     EXS_AMP(voice) = 0.0;
                     calc_ratio(voice);
@@ -1176,7 +1068,7 @@ int wire(char *line, int *thisvoice, char output) {
                 EXS_FREQACC(voice) = 0;
                 EXS_AMP(voice) = velocity;
                 calc_ratio(voice);
-                env_on(&env[voice]);
+                env_on(voice);
                 EXS_FREQACTIVE(voice) = 1;
             }
         } else if (c == '[') {
@@ -1271,7 +1163,7 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
             }
             // TODO... the eg next should have happened earlier. this should apply that value if enabled
             if (oe[i]) {
-                int32_t envelope_value = env_next(&env[i]);
+                int32_t envelope_value = env_next(i);
                 int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
                 b = sample;
             }
@@ -1370,7 +1262,7 @@ int main(int argc, char *argv[]) {
 
     for (int i=0; i<VOICES; i+=1) {
         // simple
-        env_init(&env[i], 
+        env_init(i, 
             2000,    // 2 second attack
             3000,    // 3 second decay
             4000,    // 4 second release
