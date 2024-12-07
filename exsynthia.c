@@ -725,11 +725,10 @@ void show_voice(char flag, int voice, char forceshow) {
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
     printf(" Q%g", EXS_PAN(voice));
-    printf(" acc:%"PRIu64" inc:%f len:%d div:%d freq:%f",
+    printf(" acc:%"PRIu64" inc:%f size:%d freq:%f",
         (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
         EXS_FREQSIZE(voice),
-        EXS_FREQDIV(voice) >> DDS_FRAC_BITS,
         EXS_FREQBASE(voice));
     puts("");
 }
