@@ -10,6 +10,8 @@
 
 #include "audio.h"
 
+#include "korg.h"
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 #undef M_PI
@@ -307,19 +309,42 @@ union ExVoice exvoice[VOICES][EXMAXCOLS];
 // inspired by AMY :)
 
 enum {
-    EXWAVESINE,
-    EXWAVESQR,
-    EXWAVESAWDN,
-    EXWAVESAWUP,
-    EXWAVETRI,
-    EXWAVENOISE,
-    EXWAVEUSR0,
-    EXWAVEPCM,
-    EXWAVEUSR1,
-    EXWAVEUSR2,
-    EXWAVEUSR3,
-    EXWAVENONE,
-    EXWAVMAX,
+    EXWAVESINE,     // 0
+    EXWAVESQR,      // 1
+    EXWAVESAWDN,    // 2
+    EXWAVESAWUP,    // 3
+    EXWAVETRI,      // 4
+    EXWAVENOISE,    // 5
+    EXWAVEUSR0,     // 6
+    EXWAVEPCM,      // 7
+    EXWAVEUSR1,     // 8
+    EXWAVEUSR2,     // 9
+    EXWAVEUSR3,     // 10
+    EXWAVENONE,     // 11
+    
+    EXWAVEUSR4,     // 12
+    EXWAVEUSR5,     // 13
+    EXWAVEUSR6,     // 14
+    EXWAVEUSR7,     // 15
+    
+    EXWAVEKRG1,     // 16
+    EXWAVEKRG2,     // 17
+    EXWAVEKRG3,     // 18
+    EXWAVEKRG4,     // 19
+    EXWAVEKRG5,     // 10
+    EXWAVEKRG6,     // 21
+    EXWAVEKRG7,     // 22
+    EXWAVEKRG8,     // 23
+    EXWAVEKRG9,     // 24
+    EXWAVEKRG10,    // 25
+    EXWAVEKRG11,    // 26
+    EXWAVEKRG12,    // 27
+    EXWAVEKRG13,    // 28
+    EXWAVEKRG14,    // 29
+    EXWAVEKRG15,    // 30
+    EXWAVEKRG16,    // 31
+
+    EXWAVMAX
 };
 
 // Q17.15
@@ -381,7 +406,7 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
     if (wave == EXWAVEPCM) {
         int patch = EXS_PATCH(voice);
         EXS_FREQONE(voice) = uwave_one[patch];
-#if 0
+#if 1
         printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
             voice,
             wave,
@@ -723,6 +748,12 @@ void reset_voice(int v) {
   EXS_FREQACTIVE(v) = 0;
 }
 
+int valid_wave(int w) {
+  if (w >= 0 && w < PWAVEMAX) return 1;
+  if (w >= EXWAVEKRG1 && w <= EXWAVEKRG16) return 1;
+  return 0;
+}
+
 int wire(char *line, int *thisvoice, char output) {
     int p = 0;
     int valid;
@@ -940,7 +971,7 @@ int wire(char *line, int *thisvoice, char output) {
         } else if (c == 'w') {
             int w = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
-            if (w != EXS_WAVE(voice) && w >= 0 && w < PWAVEMAX) {
+            if (w != EXS_WAVE(voice) && valid_wave(w)) {
                 EXS_WAVE(voice) = w;
                 int16_t *ptr = pwave_none;
                 int len = 0;
@@ -989,6 +1020,15 @@ int wire(char *line, int *thisvoice, char output) {
                     case EXWAVEUSR2: // part
                         break;
                     case EXWAVEUSR3: // parts
+                        break;
+                    case EXWAVEKRG1: case EXWAVEKRG2: case EXWAVEKRG3: case EXWAVEKRG4:
+                    case EXWAVEKRG5: case EXWAVEKRG6: case EXWAVEKRG7: case EXWAVEKRG8:
+                    case EXWAVEKRG9: case EXWAVEKRG10: case EXWAVEKRG11: case EXWAVEKRG12:
+                    case EXWAVEKRG13: case EXWAVEKRG14: case EXWAVEKRG15: case EXWAVEKRG16:
+                        ptr = kwave[w-EXWAVEKRG1];
+                        len = kwave_size[w-EXWAVEKRG1];
+                        forceactive = 1;
+                        base = kwave_freq[w-EXWAVEKRG1];
                         break;
                     default:
                         puts("UNEXPECTED");
@@ -1255,6 +1295,8 @@ int main(int argc, char *argv[]) {
         uwave_name[i][0] = '\0';
         uwave_one[i] = 1;
     }
+
+    korg_init();
 
     printf("# voices %d\n", VOICES);
     for (int i=0; i<VOICES; i++) {

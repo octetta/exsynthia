@@ -12,6 +12,8 @@ miniwav.o \
 minietf.o \
 #
 
+MYINC = korg
+
 LIBS = \
 -lm \
 -lpthread \
@@ -34,7 +36,7 @@ audio.o : audio.c audio.h
 	gcc -c audio.c
 
 exsynthia: exsynthia.c $(MYLIBS)
-	gcc -g exsynthia.c $(MYLIBS) -o $@ $(LIBS)
+	gcc -g -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS)
 
 mf0: mf0.c
 	gcc mf0.c -o mf0

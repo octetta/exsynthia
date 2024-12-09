@@ -6,3 +6,4 @@ mf0
 _wave*
 *.o
 *.dSYM
+korg/*.bin
