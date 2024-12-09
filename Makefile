@@ -35,7 +35,7 @@ linenoise.o : linenoise.c linenoise.h
 audio.o : audio.c audio.h
 	gcc -c audio.c
 
-exsynthia: exsynthia.c $(MYLIBS)
+exsynthia: exsynthia.c $(MYLIBS) korg/korg.h
 	gcc -g -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS)
 
 mf0: mf0.c

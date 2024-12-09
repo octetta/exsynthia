@@ -94,6 +94,7 @@ int16_t kw15[] = {
 int16_t *kwave[KWAVEMAX];
 int kwave_size[KWAVEMAX];
 double kwave_freq[KWAVEMAX];
+char *kwave_name[KWAVEMAX];
 
 void korg_init(void) {
   kwave[0] = kw0;
@@ -112,8 +113,24 @@ void korg_init(void) {
   kwave[13] = kw13;
   kwave[14] = kw14;
   kwave[15] = kw15;
+  kwave_name[0] = "korg-strings";
+  kwave_name[1] = "korg-clarinet";
+  kwave_name[2] = "korg-apiano";
+  kwave_name[3] = "korg-epiano";
+  kwave_name[4] = "korg-epiano-hard";
+  kwave_name[5] = "korg-clavi";
+  kwave_name[6] = "korg-organ";
+  kwave_name[7] = "korg-brass";
+  kwave_name[8] = "korg-sax";
+  kwave_name[9] = "korg-violin";
+  kwave_name[10] = "korg-aguitar";
+  kwave_name[11] = "korg-dguitar";
+  kwave_name[12] = "korg-ebass";
+  kwave_name[13] = "korg-dbass";
+  kwave_name[14] = "korg-bell";
+  kwave_name[15] = "korg-whistle";
   for (int i=0; i<KWAVEMAX; i++) {
     kwave_size[i] = 2048;
-    kwave_freq[i] = 1;
+    kwave_freq[i] = 0;
   }
 }

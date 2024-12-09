@@ -24,6 +24,47 @@
 
 #include <sys/time.h>
 
+// inspired by AMY :)
+
+enum {
+    EXWAVESINE,     // 0
+    EXWAVESQR,      // 1
+    EXWAVESAWDN,    // 2
+    EXWAVESAWUP,    // 3
+    EXWAVETRI,      // 4
+    EXWAVENOISE,    // 5
+    EXWAVEUSR0,     // 6
+    EXWAVEPCM,      // 7
+    EXWAVEUSR1,     // 8
+    EXWAVEUSR2,     // 9
+    EXWAVEUSR3,     // 10
+    EXWAVENONE,     // 11
+    
+    EXWAVEUSR4,     // 12
+    EXWAVEUSR5,     // 13
+    EXWAVEUSR6,     // 14
+    EXWAVEUSR7,     // 15
+    
+    EXWAVEKRG1,     // 16
+    EXWAVEKRG2,     // 17
+    EXWAVEKRG3,     // 18
+    EXWAVEKRG4,     // 19
+    EXWAVEKRG5,     // 10
+    EXWAVEKRG6,     // 21
+    EXWAVEKRG7,     // 22
+    EXWAVEKRG8,     // 23
+    EXWAVEKRG9,     // 24
+    EXWAVEKRG10,    // 25
+    EXWAVEKRG11,    // 26
+    EXWAVEKRG12,    // 27
+    EXWAVEKRG13,    // 28
+    EXWAVEKRG14,    // 29
+    EXWAVEKRG15,    // 30
+    EXWAVEKRG16,    // 31
+
+    EXWAVMAX
+};
+
 #define CYCLE_1HZ (SAMPLE_RATE * 2)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
@@ -31,8 +72,17 @@
 
 #define PWAVEMAX (12)
 
+void make_sine(int16_t *table, int size);
+void make_cosine(int16_t *table, int size);
+void make_sqr(int16_t *table, int size);
+void make_tri(int16_t *table, int size);
+void make_sawup(int16_t *table, int size);
+void make_sawdown(int16_t *table, int size);
+void make_noise(int16_t *table, int size);
+void make_none(int16_t *table, int size);
+
 int16_t *pwave[PWAVEMAX];
-char pwave_name[PWAVEMAX][32];
+char *pwave_name[PWAVEMAX];
 int pwave_size[PWAVEMAX];
 double pwave_freq[PWAVEMAX];
 
@@ -42,8 +92,58 @@ int16_t pwave_sawd[CYCLE_1HZ];
 int16_t pwave_sawu[CYCLE_1HZ];
 int16_t pwave_tri[CYCLE_1HZ];
 int16_t pwave_noise[CYCLE_1HZ * 256];
-int16_t pwave_none[CYCLE_1HZ];
+int16_t pwave_none[1];
 int16_t pwave_cos[CYCLE_1HZ];
+
+#define PWAVE_SIZE(x) (sizeof(x)/sizeof(int16_t))
+
+void pwave_init(void) {
+    make_none(pwave_none, sizeof(pwave_none)/sizeof(int16_t));
+    for (int i=0; i<PWAVEMAX; i++) {
+      pwave[i] = pwave_none;
+      pwave_size[i] = PWAVE_SIZE(pwave_none);
+      pwave_name[i] = "none";
+    }
+    pwave_name[EXWAVEPCM] = "pcm";
+    pwave_name[EXWAVEUSR3] = "capture";
+
+    make_cosine(pwave_cos, CYCLE_1HZ);
+
+    pwave[EXWAVESINE] = pwave_sin;
+    pwave_size[EXWAVESINE] = PWAVE_SIZE(pwave_sin);
+    make_sine(pwave_sin, pwave_size[EXWAVESINE]);
+    pwave_name[EXWAVESINE] = "sine";
+
+    pwave[EXWAVEUSR1] = pwave_sin;
+    pwave_size[EXWAVEUSR1] = PWAVE_SIZE(pwave_cos);
+    make_sine(pwave_sin, pwave_size[EXWAVEUSR1]);
+    pwave_name[EXWAVEUSR1] = "cosine";
+
+    pwave[EXWAVESQR] = pwave_sqr;
+    pwave_size[EXWAVESQR] = PWAVE_SIZE(pwave_sqr);
+    make_sqr(pwave_sqr, pwave_size[EXWAVESQR]);
+    pwave_name[EXWAVESQR] = "square";
+
+    pwave[EXWAVESAWDN] = pwave_sawd;
+    pwave_size[EXWAVESAWDN] = PWAVE_SIZE(pwave_sawd);
+    make_sawdown(pwave_sawd, pwave_size[EXWAVESAWDN]);
+    pwave_name[EXWAVESAWDN] = "saw-down";
+    
+    pwave[EXWAVESAWUP] = pwave_sawu;
+    pwave_size[EXWAVESAWUP] = PWAVE_SIZE(pwave_sawu);
+    make_sawup(pwave_sawu, pwave_size[EXWAVESAWUP]);
+    pwave_name[EXWAVESAWUP] = "saw-up";
+    
+    pwave[EXWAVETRI] = pwave_tri;
+    pwave_size[EXWAVETRI] = PWAVE_SIZE(pwave_tri);
+    make_tri(pwave_tri, pwave_size[EXWAVETRI]);
+    pwave_name[EXWAVETRI] = "tri";
+    
+    pwave[EXWAVENOISE] = pwave_noise;
+    pwave_size[EXWAVENOISE] = PWAVE_SIZE(pwave_noise);
+    make_noise(pwave_noise, pwave_size[EXWAVENOISE]);
+    pwave_name[EXWAVENOISE] = "noise";
+}
 
 #define USRWAVMAX (100)
 
@@ -305,47 +405,6 @@ union ExVoice {
 };
 
 union ExVoice exvoice[VOICES][EXMAXCOLS];
-
-// inspired by AMY :)
-
-enum {
-    EXWAVESINE,     // 0
-    EXWAVESQR,      // 1
-    EXWAVESAWDN,    // 2
-    EXWAVESAWUP,    // 3
-    EXWAVETRI,      // 4
-    EXWAVENOISE,    // 5
-    EXWAVEUSR0,     // 6
-    EXWAVEPCM,      // 7
-    EXWAVEUSR1,     // 8
-    EXWAVEUSR2,     // 9
-    EXWAVEUSR3,     // 10
-    EXWAVENONE,     // 11
-    
-    EXWAVEUSR4,     // 12
-    EXWAVEUSR5,     // 13
-    EXWAVEUSR6,     // 14
-    EXWAVEUSR7,     // 15
-    
-    EXWAVEKRG1,     // 16
-    EXWAVEKRG2,     // 17
-    EXWAVEKRG3,     // 18
-    EXWAVEKRG4,     // 19
-    EXWAVEKRG5,     // 10
-    EXWAVEKRG6,     // 21
-    EXWAVEKRG7,     // 22
-    EXWAVEKRG8,     // 23
-    EXWAVEKRG9,     // 24
-    EXWAVEKRG10,    // 25
-    EXWAVEKRG11,    // 26
-    EXWAVEKRG12,    // 27
-    EXWAVEKRG13,    // 28
-    EXWAVEKRG14,    // 29
-    EXWAVEKRG15,    // 30
-    EXWAVEKRG16,    // 31
-
-    EXWAVMAX
-};
 
 // Q17.15
 #define DDS_FRAC_BITS (15)
@@ -979,46 +1038,24 @@ int wire(char *line, int *thisvoice, char output) {
                 char forceactive = 0;
                 switch (w) {
                     case EXWAVESINE:
-                        ptr = pwave_sin;
-                        len = sizeof(pwave_sin)/sizeof(int16_t);
-                        forceactive = 1;
-                        break;
                     case EXWAVESQR:
-                        ptr = pwave_sqr;
-                        len = sizeof(pwave_sqr)/sizeof(int16_t);
-                        forceactive = 1;
-                        break;
                     case EXWAVESAWDN:
-                        ptr = pwave_sawd;
-                        len = sizeof(pwave_sawd)/sizeof(int16_t);
-                        forceactive = 1;
-                        break;
                     case EXWAVESAWUP:
-                        ptr = pwave_sawu;
-                        len = sizeof(pwave_sawu)/sizeof(int16_t);
-                        forceactive = 1;
-                        break;
                     case EXWAVETRI:
-                        ptr = pwave_tri;
-                        len = sizeof(pwave_tri)/sizeof(int16_t);
-                        forceactive = 1;
-                        break;
                     case EXWAVENOISE:
-                        ptr = pwave_noise;
-                        len = sizeof(pwave_noise)/sizeof(int16_t);
+                        ptr = pwave[w-EXWAVESINE];
+                        len = pwave_size[w-EXWAVESINE];
+                        base = 0;
                         forceactive = 1;
-                        break;
-                    case EXWAVEUSR0: // KS
                         break;
                     case EXWAVEPCM: // PCM (sample)
                         ptr = uwave[EXS_PATCH(voice)];
                         len = uwave_size[EXS_PATCH(voice)];
                         base = 440.0;
                         break;
+                    case EXWAVEUSR0: // KS
                     case EXWAVEUSR1: // algo
-                        break;
                     case EXWAVEUSR2: // part
-                        break;
                     case EXWAVEUSR3: // parts
                         break;
                     case EXWAVEKRG1: case EXWAVEKRG2: case EXWAVEKRG3: case EXWAVEKRG4:
@@ -1059,35 +1096,32 @@ int wire(char *line, int *thisvoice, char output) {
         } else if (c == 'W') {
             char peek = line[p];
             if (peek >= '0' && peek <= '9') {
-                p++;
-                int n = peek - '0';
+                int n = mytol(&line[p], &valid, &next);
                 switch (n) {
-                    case EXWAVESINE: dump(pwave_sin, sizeof(pwave_sin)/sizeof(int16_t)); break;
-                    case EXWAVESQR: dump(pwave_sqr, sizeof(pwave_sqr)/sizeof(int16_t)); break;
-                    case EXWAVESAWDN: dump(pwave_sawd, sizeof(pwave_sawd)/sizeof(int16_t)); break;
-                    case EXWAVESAWUP: dump(pwave_sawu, sizeof(pwave_sawu)/sizeof(int16_t)); break;
-                    case EXWAVETRI: dump(pwave_tri, sizeof(pwave_tri)/sizeof(int16_t)); break;
-                    case EXWAVENOISE: dump(pwave_noise, sizeof(pwave_noise)/sizeof(int16_t)); break;
-                    case EXWAVEPCM:
-                    case EXWAVEUSR0:
+                    case EXWAVESINE:
+                    case EXWAVESQR:
+                    case EXWAVESAWDN:
+                    case EXWAVESAWUP:
+                    case EXWAVETRI:
                     case EXWAVEUSR1:
-                    case EXWAVEUSR2:
-                    case EXWAVEUSR3:
+                    case EXWAVENOISE:
+                        dump(pwave[n-EXWAVESINE], pwave_size[n-EXWAVESINE]);
+                        break;
+                    case EXWAVEKRG1: case EXWAVEKRG2: case EXWAVEKRG3: case EXWAVEKRG4:
+                    case EXWAVEKRG5: case EXWAVEKRG6: case EXWAVEKRG7: case EXWAVEKRG8:
+                    case EXWAVEKRG9: case EXWAVEKRG10: case EXWAVEKRG11: case EXWAVEKRG12:
+                    case EXWAVEKRG13: case EXWAVEKRG14: case EXWAVEKRG15: case EXWAVEKRG16:
+                        dump(kwave[n-EXWAVEKRG1], kwave_size[n-EXWAVEKRG1]);
                         break;
                 }
             } else {
                 if (output) {
-                printf("%d sine\n", EXWAVESINE);
-                printf("%d square\n", EXWAVESQR);
-                printf("%d sawtoothdown\n", EXWAVESAWDN);
-                printf("%d sawtoothup\n", EXWAVESAWUP);
-                printf("%d triangle\n", EXWAVETRI);
-                printf("%d noise\n", EXWAVENOISE);
-                printf("%d usr0\n", EXWAVEUSR0);
-                printf("%d pcm\n", EXWAVEPCM);
-                printf("%d usr1\n", EXWAVEUSR1);
-                printf("%d usr2\n", EXWAVEUSR2);
-                printf("%d capture\n", EXWAVEUSR3);
+                  for (int i=0; i<PWAVEMAX; i++) {
+                    printf("%d %s\n", i, pwave_name[i]);
+                  }
+                  for (int i=0; i<KWAVEMAX; i++) {
+                    printf("%d %s\n", i+15, kwave_name[i]);
+                  }
                 }
             }
         } else if (c == 'L') {
@@ -1279,15 +1313,6 @@ int main(int argc, char *argv[]) {
     printf("# DDS Q%d.%d\n", 32-DDS_FRAC_BITS, DDS_FRAC_BITS);
     printf("# ENV Q%d.%d\n", 32-ENV_FRAC_BITS, ENV_FRAC_BITS);
 
-    make_sine(pwave_sin, sizeof(pwave_sin)/sizeof(int16_t));
-    make_sqr(pwave_sqr, sizeof(pwave_sqr)/sizeof(int16_t));
-    make_sawdown(pwave_sawd, sizeof(pwave_sawd)/sizeof(int16_t));
-    make_sawup(pwave_sawu, sizeof(pwave_sawu)/sizeof(int16_t));
-    make_tri(pwave_tri, sizeof(pwave_tri)/sizeof(int16_t));
-    make_noise(pwave_noise, sizeof(pwave_noise)/sizeof(int16_t));
-    make_none(pwave_none, sizeof(pwave_none)/sizeof(int16_t));
-    make_cosine(pwave_cos, sizeof(pwave_cos)/sizeof(int16_t));
-
     printf("# PCM patches %d\n", USRWAVMAX);
     for (int i=0; i<USRWAVMAX; i++) {
         uwave[i] = NULL;
@@ -1295,6 +1320,8 @@ int main(int argc, char *argv[]) {
         uwave_name[i][0] = '\0';
         uwave_one[i] = 1;
     }
+
+    pwave_init();
 
     korg_init();
 
