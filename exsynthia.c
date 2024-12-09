@@ -62,6 +62,23 @@ enum {
     EXWAVEKRG15,    // 30
     EXWAVEKRG16,    // 31
 
+    EXWAVEKRG17,     // 32
+    EXWAVEKRG18,     // 33
+    EXWAVEKRG19,     // 34
+    EXWAVEKRG20,     // 35
+    EXWAVEKRG21,     // 36
+    EXWAVEKRG22,     // 37
+    EXWAVEKRG23,     // 38
+    EXWAVEKRG24,     // 39
+    EXWAVEKRG25,     // 40
+    EXWAVEKRG26,    // 41
+    EXWAVEKRG27,    // 42
+    EXWAVEKRG28,    // 43
+    EXWAVEKRG29,    // 44
+    EXWAVEKRG30,    // 45
+    EXWAVEKRG31,    // 46
+    EXWAVEKRG32,    // 47
+
     EXWAVMAX
 };
 
@@ -809,7 +826,7 @@ void reset_voice(int v) {
 
 int valid_wave(int w) {
   if (w >= 0 && w < PWAVEMAX) return 1;
-  if (w >= EXWAVEKRG1 && w <= EXWAVEKRG16) return 1;
+  if (w >= EXWAVEKRG1 && w <= EXWAVEKRG32) return 1;
   return 0;
 }
 
@@ -1062,6 +1079,12 @@ int wire(char *line, int *thisvoice, char output) {
                     case EXWAVEKRG5: case EXWAVEKRG6: case EXWAVEKRG7: case EXWAVEKRG8:
                     case EXWAVEKRG9: case EXWAVEKRG10: case EXWAVEKRG11: case EXWAVEKRG12:
                     case EXWAVEKRG13: case EXWAVEKRG14: case EXWAVEKRG15: case EXWAVEKRG16:
+                    //
+                    case EXWAVEKRG17: case EXWAVEKRG18: case EXWAVEKRG19:
+                    case EXWAVEKRG20: case EXWAVEKRG21: case EXWAVEKRG22: case EXWAVEKRG23:
+                    case EXWAVEKRG24: case EXWAVEKRG25: case EXWAVEKRG26: case EXWAVEKRG27:
+                    case EXWAVEKRG28: case EXWAVEKRG29: case EXWAVEKRG30: case EXWAVEKRG31:
+                    case EXWAVEKRG32:
                         ptr = kwave[w-EXWAVEKRG1];
                         len = kwave_size[w-EXWAVEKRG1];
                         forceactive = 1;
