@@ -37,6 +37,21 @@ STATE_BEND_MSB   = 401
 c = 0
 state = STATE_NONE
 
+import socket
+
+ip = '127.0.0.1'
+port = 60440
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+def wire(msg):
+  sock.sendto(bytes(msg, "utf-8"), (ip,port))
+
+the_use = 0
+the_key = 69
+the_vel = 0
+the_mode = 0 # off 1 = on
+
 while True:
   extra = ""
   if ser.inWaiting() > 0:
@@ -48,13 +63,15 @@ while True:
     if c > 1:
       print(f'active-sense x {c}')
       c = 0
-    if state > STATE_NONE:
+    if state != STATE_NONE:
       if state == STATE_NOTE_KEY: # get key
         extra = f"key {n}"
+        the_key = n
         state = STATE_NOTE_VEL
       elif state == STATE_NOTE_VEL: # get velocity
         extra = f"vel {n}"
         state = STATE_NONE
+        the_vel = n
       elif state == STATE_CC_CONTROL: # get CC control#
         extra = f"CC control {n}"
         state = STATE_CC_VALUE
@@ -72,9 +89,12 @@ while True:
     top4 = n >> 4
     bot4 = n & 0xf
     if top4 == NOTE_OFF: # note-off
+      the_use = 1
       extra = f"NOTE OFF / ch{bot4:d}"
       state = STATE_NOTE_KEY
-    elif top4 == NOTE_ON: # note-off
+      the_vel = 0
+    elif top4 == NOTE_ON: # note-on
+      the_use = 1
       extra = f"NOTE ON / ch{bot4:d}"
       state = STATE_NOTE_KEY
     elif top4 == POLY: # poly key pressure
@@ -100,4 +120,11 @@ while True:
         extra = "SYS?"
     else:
       extra = "????"
-    print(f'{n:02x}/{n:03d} {extra}')
+    print(f'{n:02x}/{n:03d} {extra} {the_key} {the_vel} {the_use}')
+    if the_use == 1:
+      if the_vel == 0:
+        wire("v0l0v1l0")
+      else:
+        wire(f"v0n{the_key}l5v1n{the_key+.1}l5")
+      the_use = 0
+      
