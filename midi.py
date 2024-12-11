@@ -50,9 +50,12 @@ def wire(msg):
 the_mode = 0 # off 1 = on
 
 key_uses_note = {}
+voice_map = {}
 voice_max = 32
 voice_next = 0
 voice_delta = 4
+
+active_sense = 0
 
 while True:
     out = ser.read(1)
@@ -63,9 +66,10 @@ while True:
       out = ser.read(1)
       v = int.from_bytes(out, 'little')
       vel = v/127.0 + 5
-      print("on", key, vel, voice_next, voice_next+1, voice_next+2)
+      print(" on", key, v, voice_next, voice_next+1, voice_next+2)
       key_uses_note[key] = voice_next
-      wire(f"v{voice_next}n{key}l5v{voice_next+1}n{key+.1}l{vel}")
+      voice_map[voice_next] = key
+      wire(f"v{voice_next}n{key}l5v{voice_next+1}n{key+.1}l{vel}v{voice_next+2}n{key/2}l{vel}")
       voice_next += voice_delta
       if voice_next >= voice_max:
         voice_next = 0
@@ -74,7 +78,18 @@ while True:
       key = int.from_bytes(out, 'little')
       out = ser.read(1)
       vel = int.from_bytes(out, 'little')
-      me = key_uses_note[key]
-      print("off", key, vel, me, me+1, me+2)
-      wire(f"v{me}l0v{me+1}l0v{me+1}l0")
-      del key_uses_note[key]
+      voff = key_uses_note.get(key, -1)
+      if voff != -1:
+        print("off", key, vel, voff, voff+1, voff+2)
+        wire(f"v{voff}l0v{voff+1}l0v{voff+1}l0v{voff+2}l0")
+        del key_uses_note[key]
+    elif n == 254:
+      active_sense += 1
+    elif n == 251:
+      print("keyicon")
+    elif n == 252:
+      print("minus")
+    elif n == 250:
+      print("plus")
+    else:
+      print(n)

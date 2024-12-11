@@ -85,7 +85,7 @@ enum {
 #define CYCLE_1HZ (SAMPLE_RATE * 2)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
-#define VOICES (32)
+#define VOICES (48)
 
 #define PWAVEMAX (12)
 

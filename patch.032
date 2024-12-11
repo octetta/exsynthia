@@ -1,0 +1,18 @@
+# "guitar"
+
+v0 w27 v1 w28 d25 v2 w28
+v4 w27 v5 w28 d25 v6 w28
+v8 w27 v9 w28 d25 v10 w28
+v12 w27 v13 w28 d25 v14 w28
+v16 w27 v17 w28 d25 v18 w28
+v20 w27 v21 w28 d25 v22 w28
+v24 w27 v25 w28 d25 v26 w28
+v28 w27 v29 w28 d25 v30 w28
+
+# drums
+
+<p5
+<p8
+<p16
+v32 w7 p5 f400
+v33 w7 p16 f375
