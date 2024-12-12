@@ -9,27 +9,43 @@ defmodule Drum do
     {:ok, socket}
   end
 
-  def beat do
-    Process.sleep(150)
+  def beat(tempo) do
+    Process.sleep(tempo)
   end
 
-  def drum(socket) do
+  def kick(socket) do
     wire("v32l10", socket)
-    Drum.beat
+  end
+
+  def hh(socket) do
     wire("v34l10", socket)
-    Drum.beat
+  end
+
+  def snare(socket) do
     wire("v33l10", socket)
-    Drum.beat
-    wire("v34l10", socket)
-    Drum.beat
-    drum(socket)
+  end
+
+  def drum(tempo, socket) do
+    kick(socket)
+    beat(tempo)
+    hh(socket)
+    beat(tempo)
+    snare(socket)
+    beat(tempo)
+    hh(socket)
+    beat(tempo)
+    drum(tempo, socket)
   end
   
-  def loop do
+  def loop(tempo) do
     {:ok, socket} = Drum.init
     wire("<p13 <p5 <p11 v33w7p13 v32w7p5 v34w7p11", socket)
-    drum(socket)
+    drum(tempo, socket)
+  end
+
+  def loop do
+    loop(150)
   end
 end
 
-Drum.loop
+# Drum.loop(tempo)
