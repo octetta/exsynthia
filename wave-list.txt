@@ -1,0 +1,26 @@
+000 claps
+001 crash
+002 hh-closed
+003 hh-closed-mute
+004 hh-open
+005 kick
+006 wood-block?
+007 wood-block?
+008 lofi crash?
+009 lofi hh?
+010 wood-block
+011 hh
+012 hh
+013 snare
+014 tom
+015 tom
+016 kick
+017 kick
+018 horn
+019 e-snare
+020 pluck
+021 blonk (wood hammer thing?)
+022 string
+023 kalimba
+024 emergency
+025
