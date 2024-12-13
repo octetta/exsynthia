@@ -51,11 +51,14 @@ the_mode = 0 # off 1 = on
 
 key_uses_note = {}
 voice_map = {}
-voice_max = 32
-voice_next = 0
+voice_start = 40
+voice_max = 48
+voice_next = voice_start
 voice_delta = 4
 
 active_sense = 0
+
+wire("[34")
 
 while True:
     out = ser.read(1)
@@ -72,7 +75,7 @@ while True:
       wire(f"v{voice_next}n{key}l5v{voice_next+1}n{key+.1}l{vel}v{voice_next+2}n{key/2}l{vel}")
       voice_next += voice_delta
       if voice_next >= voice_max:
-        voice_next = 0
+        voice_next = voice_start
     elif n == 128:
       out = ser.read(1)
       key = int.from_bytes(out, 'little')
