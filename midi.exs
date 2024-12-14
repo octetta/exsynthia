@@ -1,3 +1,5 @@
+#!/bin/env elixir
+
 Mix.install([
   {:circuits_uart, "~> 1.5"}
 ])
@@ -6,9 +8,6 @@ defmodule Midi do
   @state_none 0
   @state_get_note 10
   @state_get_velocity 20
-  @state_note_on 1
-  @state_note_off 2
-  @state_velocity 3
   @state_ready 100
 
   @type_none 0

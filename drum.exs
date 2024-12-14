@@ -1,3 +1,5 @@
+#!/bin/env elixir
+
 defmodule Drum do
   def init do
     {:ok, socket} = :gen_udp.open(0)
@@ -30,7 +32,8 @@ defmodule Drum do
   end
 
   def bass(pos, socket) do
-    wire("v0l5f220v1l.1", socket)
+    n = (69-12)+pos
+    wire("v0l5n#{n}v1l.1", socket)
   end
 
   def drum(tempo, pos, socket) do
@@ -74,7 +77,7 @@ defmodule Drum do
   end
 end
 
-args = System.argv()
-tempo = Enum.at(args, 0)
+# args = System.argv()
+# tempo = Enum.at(args, 0)
 
 Drum.loop 200
