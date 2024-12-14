@@ -482,7 +482,7 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
     if (wave == EXWAVEPCM) {
         int patch = EXS_PATCH(voice);
         EXS_FREQONE(voice) = uwave_one[patch];
-#if 1
+#if 0
         printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
             voice,
             wave,
