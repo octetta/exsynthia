@@ -4,6 +4,8 @@ Mix.install([
 
 defmodule Midi do
   @state_none 0
+  @state_get_note 10
+  @state_get_velocity 20
   @state_note_on 1
   @state_note_off 2
   @state_velocity 3
@@ -18,27 +20,24 @@ defmodule Midi do
     %{state: @state_none, type: @type_none}
   end
   
-  # 0x9x = MIDI on, x = channel, followed by note, followed by velocity
+  # 0x9x = MIDI on, x = channel, -> get note, followed by velocity
   def process(<<9::4,channel::4>>,_,prior) do
-    Map.merge(prior, %{state: @state_note_on, type: @type_note_on, channel: channel})
+    Map.merge(prior, %{state: @state_get_note, type: @type_note_on, channel: channel})
   end
   
-  # 0x9x = MIDI off, x = channel, followed by note, followed by velocity
+  # 0x9x = MIDI off, x = channel, -> get note
   def process(<<8::4,channel::4>>,_,prior) do
-    Map.merge(prior, %{state: @state_note_off, type: @type_note_off, channel: channel})
+    Map.merge(prior, %{state: @state_get_note, type: @type_note_off, channel: channel})
   end
   
-  def process(byte,@state_note_on,prior) do
+  # add midi note to map -> get velocity
+  def process(byte,@state_get_note,prior) do
     <<note>> = byte
-    Map.merge(prior, %{state: @state_velocity, note: note})
+    Map.merge(prior, %{state: @state_get_velocity, note: note})
   end
   
-  def process(byte,@state_note_off,prior) do
-    <<note>> = byte
-    Map.merge(prior, %{state: @state_velocity, note: note})
-  end
-  
-  def process(byte,@state_velocity,prior) do
+  # add velocity to map -> ready to be used
+  def process(byte,@state_get_velocity,prior) do
     <<velocity>> = byte
     Map.merge(prior, %{state: @state_ready, velocity: velocity})
   end
