@@ -37,6 +37,7 @@ defmodule Drum do
   end
 
   def drum(tempo, pos, socket) do
+    IO.puts "bar #{pos}"
     bass(rem(pos,2), socket)
     kick(socket)
     beat(tempo)
