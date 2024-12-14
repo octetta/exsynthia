@@ -74,4 +74,7 @@ defmodule Drum do
   end
 end
 
-# Drum.loop(tempo)
+args = System.argv()
+tempo = Enum.at(args, 0)
+
+Drum.loop 200
