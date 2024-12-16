@@ -15,7 +15,7 @@ defmodule Midi do
   @type_note_off 2
 
   # this message is sent periodically from the keytar
-  def process(<<254>>,_,_) do
+  def process(<<254>>,_,_prior) do
     %{state: @state_none, type: @type_none}
   end
   
@@ -41,7 +41,7 @@ defmodule Midi do
     Map.merge(prior, %{state: @state_ready, velocity: velocity})
   end
   
-  def process(_,_,_) do
+  def process(_,_,_prior) do
     # this is a state we don't understand, ignore it and reset
     # IO.puts "i don't know what to do"
     %{state: @state_none, type: @type_none}
@@ -93,16 +93,16 @@ defmodule Custom do
     case s.type do
       # Midi.note_on ->
       1 ->
-        v = 40
+        v = outlet.voice_top
         x = s.note
         y = s.note - 12
         z = s.note + 0.1
-        IO.puts " ON #{s.channel} #{s.note} #{s.velocity}"
+        IO.puts " ON #{s.channel} #{s.note} #{s.velocity} (#{v})"
         wire("v#{v}n#{x}l5 v#{v+1}n#{y}l5 v#{v+2}n#{z}l5", outlet)
       # Midi.note_off ->
       2 ->
-        v = 40
-        IO.puts "OFF #{s.channel} #{s.note} #{s.velocity}"
+        v = outlet.voice_top
+        IO.puts "OFF #{s.channel} #{s.note} #{s.velocity} (#{v})"
         wire("v#{v}l0 v#{v+1}l0 v#{v+2}l0", outlet)
     end
   end
@@ -112,4 +112,5 @@ args = System.argv()
 port = Enum.at(args, 0)
 pid = Midi.open(port)
 outlet = Custom.open({0,0,0,0}, 60440)
+outlet = Map.merge(outlet, %{voice_top: 40})
 Midi.run(0, pid, &Custom.processor/2, outlet)
