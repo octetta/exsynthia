@@ -15,50 +15,49 @@ defmodule Midi do
   @type_note_off 2
 
   # this message is sent periodically from the keytar
-  def process(<<254>>,_,_prior) do
-    %{state: @state_none, type: @type_none}
+  def process(<<254>>,prior) do
+    Map.merge(prior, %{state: @state_none, type: @type_none})
   end
   
   # 0x9x = MIDI on, x = channel, -> get note, followed by velocity
-  def process(<<9::4,channel::4>>,_,prior) do
+  def process(<<9::4,channel::4>>,prior) do
     Map.merge(prior, %{state: @state_get_note, type: @type_note_on, channel: channel})
   end
   
   # 0x9x = MIDI off, x = channel, -> get note
-  def process(<<8::4,channel::4>>,_,prior) do
+  def process(<<8::4,channel::4>>,prior) do
     Map.merge(prior, %{state: @state_get_note, type: @type_note_off, channel: channel})
   end
   
   # add midi note to map -> get velocity
-  def process(byte,@state_get_note,prior) do
+  def process(byte,%{state: @state_get_note}=prior) do
     <<note>> = byte
     Map.merge(prior, %{state: @state_get_velocity, note: note})
   end
   
   # add velocity to map -> ready to be used
-  def process(byte,@state_get_velocity,prior) do
+  def process(byte,%{state: @state_get_velocity}=prior) do
     <<velocity>> = byte
     Map.merge(prior, %{state: @state_ready, velocity: velocity})
   end
   
-  def process(_,_,_prior) do
+  def process(_,_prior) do
     # this is a state we don't understand, ignore it and reset
     # IO.puts "i don't know what to do"
     %{state: @state_none, type: @type_none}
   end
 
-  def action(@state_ready, s, processor, arg) do
+  def action(%{state: @state_ready}=s, processor, arg) do
     processor.(s, arg)
     s
   end
 
-  def action(_,s,_,_) do
+  def action(s,_,_) do
     s
   end
 
   def loop(byte, current, processor, arg) do
-    s = process(byte, current.state, current)
-    action(s.state, s, processor, arg)
+    process(byte, current) |> action(processor, arg)
   end
 
   def open(port) do
