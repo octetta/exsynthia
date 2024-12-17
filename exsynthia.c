@@ -85,7 +85,7 @@ enum {
 #define CYCLE_1HZ (SAMPLE_RATE * 2)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
-#define VOICES (64)
+#define VOICES (52)
 
 #define PWAVEMAX (12)
 
@@ -606,7 +606,7 @@ void user_stop(void) {
     _user_running = 0;
 }
 
-int wire(char *line, int *thisvoice, char output);
+int wire(char *line, int *thisvoice, char *output);
 
 int etf_fdin = -1;
 int etf_fdout = -1;
@@ -614,6 +614,7 @@ int etf_fdout = -1;
 void *etf(void *arg) {
     int voice = 0;
     struct etf_tuple tuple;
+    char output = 0;
     while (user_running()) {
         if (etf_fdin < 0 || etf_fdout < 0) {
             // puts("NO");
@@ -625,7 +626,7 @@ void *etf(void *arg) {
             if (tuple.count == 0) {
                 puts("{}");
             } else if (strcmp(tuple.key, "wire") == 0) {
-                //int r = wire(line, &voice, 0);
+                //int r = wire(line, &voice, &output);
                 if (tuple.type == etf_list) {
                     printf("LIST[%d]\n", tuple.len);
                 }
@@ -671,11 +672,12 @@ void *udp(void *arg) {
     struct sockaddr_in client;
     unsigned int client_len = sizeof(client);
     char line[1024];
+    char output = 0;
     while (user_running()) {
         int n = recvfrom(sock, line, sizeof(line), 0, (struct sockaddr *)&client, &client_len);
         if (n > 0) {
           line[n] = '\0';
-          int r = wire(line, &voice, 0);
+          int r = wire(line, &voice, &output);
         } else {
           perror("recvfrom");
         }
@@ -785,7 +787,7 @@ int getwav(int i, char output) {
 }
 
 
-void trigger_active(char output) {
+void trigger_active(char *output) {
     for (int voice=0; voice<VOICES; voice++) {
         double velocity = EXS_AMP(voice);
         double freq = EXS_FREQ(voice);
@@ -815,7 +817,7 @@ void trigger_active(char output) {
         sprintf(wstr, "v%dw%df%sl%s", voice, wave, fptr, lptr);
         if (output) printf("# -> %s\n", wstr);
 
-        wire(wstr, &copyvoice, 0);
+        wire(wstr, &copyvoice, &output);
         #else
         if (velocity > 0.0) {
             if (output) printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n", voice, wave, freq, velocity, top, bot);
@@ -852,7 +854,7 @@ int valid_wave(int w) {
   return 0;
 }
 
-int wire(char *line, int *thisvoice, char output) {
+int wire(char *line, int *thisvoice, char *output) {
     int p = 0;
     int valid;
     int voice = 0;
@@ -876,7 +878,7 @@ int wire(char *line, int *thisvoice, char output) {
                   int ms = mytol(&line[p], &valid, &next);
                   if (!valid) goto errexit;
                   p += next-1;
-                  if (output) printf("# capture for %dms\n", ms);
+                  if (*output) printf("# capture for %dms\n", ms);
                 }
                 break;
               case 'p':
@@ -885,7 +887,7 @@ int wire(char *line, int *thisvoice, char output) {
                 int n = mytol(&line[p], &valid, &next);
                 if (!valid) goto errexit;
                 p += next-1;
-                getwav(n, output);
+                getwav(n, *output);
                 break;
               default:
                 valid = 0;
@@ -894,9 +896,13 @@ int wire(char *line, int *thisvoice, char output) {
         } else if (c == ':') {
             char peek = line[p];
             switch (peek) {
+                case '1':
+                    p++;
+                    *output = 1;
+                    break;
                 case 'c':
                     p++;
-                    if (output) printf("%c[2J%c[H\n", 27, 27);
+                    if (*output) printf("%c[2J%c[H\n", 27, 27);
                     break;
                 case 'q':
                     p++;
@@ -929,19 +935,19 @@ int wire(char *line, int *thisvoice, char output) {
                 for (int i=0; i<VOICES; i++) {
                     char flag = ' ';
                     if (i == voice) flag = '*';
-                    if (output) show_voice(flag, i, 0);
+                    if (*output) show_voice(flag, i, 0);
                 }
                 // printf("# rtms %ldms\n", rtms);
                 // printf("# btms %ldms\n", btms);
                 // printf("# diff %ldms\n", btms-rtms);
                 // printf("# L%d\n", latency_hack_ms);
-                if (output) printf("# -d%s\n", theplayback);
-                if (output) printf("# frames sent %lld\n", frames_sent);
+                if (*output) printf("# -d%s\n", theplayback);
+                if (*output) printf("# frames sent %lld\n", frames_sent);
             } else {
                 int i = voice;
                 char flag = ' ';
                 if (i == voice) flag = '*';
-                if (output) show_voice(flag, i, 1);
+                if (*output) show_voice(flag, i, 1);
             }
             continue;
         } else if (c == 'Z') {
@@ -1062,7 +1068,7 @@ int wire(char *line, int *thisvoice, char output) {
         } else if (c == 'P') {
             for (int patch=0; patch<100; patch++) {
                 if (uwave[patch] && uwave_size[patch]) {
-                    if (output) printf("# p%d # %s %d one:%d\n", patch,
+                    if (*output) printf("# p%d # %s %d one:%d\n", patch,
                         uwave_name[patch], uwave_size[patch], uwave_one[patch]);
                 }
             }
@@ -1166,7 +1172,7 @@ int wire(char *line, int *thisvoice, char output) {
                         break;
                 }
             } else {
-                if (output) {
+                if (*output) {
                   for (int i=0; i<PWAVEMAX; i++) {
                     printf("%d %s\n", i, pwave_name[i]);
                   }
@@ -1202,16 +1208,17 @@ int wire(char *line, int *thisvoice, char output) {
             char filename[1024];
             int localvoice = voice;
             sprintf(filename, "patch.%03d", x);
-            if (output) printf("# try to load %s\n", filename);
+            if (*output) printf("# try to load %s\n", filename);
             FILE *file = fopen(filename, "r");
             if (file != NULL) {
                 char look[1000];
+                char foutput = 0;
                 while (fgets(look, sizeof(look), file) != NULL) {
                     int n = strlen(look);
                     if (n > 0) {
                         look[n-1] = '\0';
-                        if (output) printf("# %s\n", look);
-                        int r = wire(look, &localvoice, 0);
+                        if (*output) printf("# %s\n", look);
+                        int r = wire(look, &localvoice, &foutput);
                         // printf("result = %d\n", r);
                     }
                 }
@@ -1224,7 +1231,7 @@ int wire(char *line, int *thisvoice, char output) {
     }
     errexit: // if something bad happened, i hope you set valid == 0
     if (!valid) {
-        if (output) printf("trouble -> %s\n", &line[p-1]);
+        if (*output) printf("trouble -> %s\n", &line[p-1]);
     }
     if (thisvoice) {
         *thisvoice = voice;
@@ -1238,12 +1245,13 @@ void *user(void *arg) {
     int voice = 0;
     linenoiseHistoryLoad(HISTORY_FILE);
     usleep(5 * 100 * 1000);
+    char output = 1;
     while (1) {
         char *line = linenoise("> ");
         if (line == NULL) break;
         if (strlen(line) == 0) continue;
         linenoiseHistoryAdd(line);
-        int n = wire(line, &voice, 1);
+        int n = wire(line, &voice, &output);
         linenoiseFree(line);
     }
     linenoiseHistorySave(HISTORY_FILE);
