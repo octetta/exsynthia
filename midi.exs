@@ -15,49 +15,45 @@ defmodule Midi do
   @type_note_off 2
 
   # this message is sent periodically from the keytar
-  def process(<<254>>,prior) do
+  def consume(<<254>>,prior) do
     Map.merge(prior, %{state: @state_none, type: @type_none})
   end
   
   # 0x9x = MIDI on, x = channel, -> get note, followed by velocity
-  def process(<<9::4,channel::4>>,prior) do
+  def consume(<<9::4,channel::4>>,prior) do
     Map.merge(prior, %{state: @state_get_note, type: @type_note_on, channel: channel})
   end
   
   # 0x9x = MIDI off, x = channel, -> get note
-  def process(<<8::4,channel::4>>,prior) do
+  def consume(<<8::4,channel::4>>,prior) do
     Map.merge(prior, %{state: @state_get_note, type: @type_note_off, channel: channel})
   end
   
   # add midi note to map -> get velocity
-  def process(byte,%{state: @state_get_note}=prior) do
+  def consume(byte,%{state: @state_get_note}=prior) do
     <<note>> = byte
     Map.merge(prior, %{state: @state_get_velocity, note: note})
   end
   
   # add velocity to map -> ready to be used
-  def process(byte,%{state: @state_get_velocity}=prior) do
+  def consume(byte,%{state: @state_get_velocity}=prior) do
     <<velocity>> = byte
     Map.merge(prior, %{state: @state_ready, velocity: velocity})
   end
   
-  def process(_,_prior) do
+  def consume(_,_prior) do
     # this is a state we don't understand, ignore it and reset
     # IO.puts "i don't know what to do"
     %{state: @state_none, type: @type_none}
   end
 
-  def action(%{state: @state_ready}=s, processor, arg) do
-    processor.(s, arg)
+  def action(%{state: @state_ready}=s, consumer, arg) do
+    consumer.(s, arg)
     s
   end
 
   def action(s,_,_) do
     s
-  end
-
-  def loop(byte, current, processor, arg) do
-    process(byte, current) |> action(processor, arg)
   end
 
   def open(port) do
@@ -66,13 +62,13 @@ defmodule Midi do
     pid
   end
 
-  def run(state, pid, processor, arg) do
+  def run(state, pid, consumer, arg) do
     {:ok, raw} = Circuits.UART.read(pid, 1000)
     String.graphemes(raw)
-      |> Enum.reduce(%{state: state}, fn n, state ->
-           loop(n, state, processor, arg)
+      |> Enum.reduce(%{state: state}, fn byte, state ->
+           consume(byte, state) |> action(consumer, arg)
          end)
-    run(state, pid, processor, arg)
+    run(state, pid, consumer, arg)
   end
 end
 
@@ -88,7 +84,7 @@ defmodule Custom do
   def wire(msg, outlet) do
     :gen_udp.send(outlet.socket, outlet.addr, outlet.port, msg)
   end
-  def processor(s, outlet) do
+  def consumer(s, outlet) do
     case s.type do
       # Midi.note_on ->
       1 ->
@@ -97,7 +93,7 @@ defmodule Custom do
         y = s.note - 12
         z = s.note + 0.1
         IO.puts " ON #{s.channel} #{s.note} #{s.velocity} (#{v})"
-        wire("v#{v}n#{x}l5 v#{v+1}n#{y}l5 v#{v+2}n#{z}l5", outlet)
+        wire("v#{v}n#{x}l5 T v#{v+1}n#{y}l5 T v#{v+2}n#{z}l5 T", outlet)
       # Midi.note_off ->
       2 ->
         v = outlet.voice_top
@@ -112,4 +108,4 @@ port = Enum.at(args, 0)
 pid = Midi.open(port)
 outlet = Custom.open({0,0,0,0}, 60440)
 outlet = Map.merge(outlet, %{voice_top: 40})
-Midi.run(0, pid, &Custom.processor/2, outlet)
+Midi.run(0, pid, &Custom.consumer/2, outlet)

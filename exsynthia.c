@@ -327,6 +327,12 @@ double ofgd[VOICES];
 #define EXS_NOTE(voice)       exvoice[voice][EXNOTE].f
 #define EXS_PATCH(voice)      exvoice[voice][EXPATCH].i
 #define EXS_PAN(voice)        exvoice[voice][EXPAN].f
+//
+#define EXS_TRIGGER(voice)    exvoice[voice][EXTRIGGER].b
+#define EXS_TRIGGER0(voice)    exvoice[voice][EXTRIGGER0].tv
+#define EXS_TRIGGER1(voice)    exvoice[voice][EXTRIGGER1].tv
+#define EXS_TRIGGERF0(voice)    exvoice[voice][EXTRIGGERF0].u64
+#define EXS_TRIGGERF1(voice)    exvoice[voice][EXTRIGGERF1].u64
 
 enum {
     EXWAVE,  // waveform index
@@ -399,12 +405,20 @@ enum {
     //
     EXGATE,
     //
+    EXTRIGGER,
+    EXTRIGGER0,
+    EXTRIGGER1,
+    EXTRIGGERF0,
+    EXTRIGGERF1,
+    //
     EXMAXCOLS,
 };
 
 typedef int32_t q248_t;
 typedef int32_t q1715_t;
 typedef int32_t q1616_t;
+
+#include <sys/time.h>
 
 union ExVoice {
     char b;
@@ -419,6 +433,7 @@ union ExVoice {
     q1715_t q1715_t;
     q1616_t q1616_t;
     int16_t *pi16;
+    struct timeval tv;
 };
 
 union ExVoice exvoice[VOICES][EXMAXCOLS];
@@ -723,6 +738,13 @@ void show_voice(char flag, int voice, char forceshow) {
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
         EXS_FREQSIZE(voice),
         EXS_FREQBASE(voice));
+    if (EXS_TRIGGER(voice) == 0) {
+      struct timeval diff;
+      int fdiff = EXS_TRIGGERF1(voice) - EXS_TRIGGERF0(voice);
+      timersub(&EXS_TRIGGER1(voice), &EXS_TRIGGER0(voice), &diff);
+      printf(" trigger:%gms, %d frames", (double)(diff.tv_usec)/1000.0, fdiff);
+    }
+
     puts("");
 }
 
@@ -1116,6 +1138,12 @@ int wire(char *line, int *thisvoice, char output) {
         //     if (n > 0) {
         //         latency_hack_ms = n;
         //     }
+        } else if (c == 'T') {
+          timerclear(&EXS_TRIGGER0(voice));
+          timerclear(&EXS_TRIGGER1(voice));
+          EXS_TRIGGERF0(voice) = frames_sent;
+          gettimeofday(&EXS_TRIGGER0(voice), NULL);
+          EXS_TRIGGER(voice) = 1;
         } else if (c == 'W') {
             char peek = line[p];
             if (peek >= '0' && peek <= '9') {
@@ -1245,6 +1273,11 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
     for (int n = 0; n < period_size; n++) {
         buffer[n] = 0;
         for (int i=0; i<VOICES; i++) {
+            if (EXS_TRIGGER(i)) {
+              EXS_TRIGGERF1(i) = frames_sent;
+              gettimeofday(&EXS_TRIGGER1(i), NULL);
+              EXS_TRIGGER(i) = 0;
+            }
             EXS_LASTSAMPLE(i) = 0;
             if (EXS_WAVE(i) == EXWAVENONE) continue;
             if (EXS_AMP(i) == 0.0) continue;
