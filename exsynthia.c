@@ -1281,15 +1281,15 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
     for (int n = 0; n < period_size; n++) {
         buffer[n] = 0;
         for (int i=0; i<VOICES; i++) {
+            EXS_LASTSAMPLE(i) = 0;
+            if (EXS_WAVE(i) == EXWAVENONE) continue;
+            if (EXS_AMP(i) == 0.0) continue;
+            if (EXS_AMPTOP(i) == 0 || EXS_AMPBOT(i) == 0) continue;
             if (EXS_TRIGGER(i)) {
               EXS_TRIGGERF1(i) = frames_sent;
               gettimeofday(&EXS_TRIGGER1(i), NULL);
               EXS_TRIGGER(i) = 0;
             }
-            EXS_LASTSAMPLE(i) = 0;
-            if (EXS_WAVE(i) == EXWAVENONE) continue;
-            if (EXS_AMP(i) == 0.0) continue;
-            if (EXS_AMPTOP(i) == 0 || EXS_AMPBOT(i) == 0) continue;
             if (capture && EXS_WAVE(i) == EXWAVEUSR3) {
               b = (capture[i*2] + capture[i*2+1]) / 2; // this assumes capture is stereo !?!
             } else {
