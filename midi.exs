@@ -8,52 +8,92 @@ defmodule Midi do
   @state_none 0
   @state_get_note 10
   @state_get_velocity 20
+  @state_get_cc_number 30
+  @state_get_cc_value 31
+  @state_get_pb_lsb 40
+  @state_get_pb_msb 41
   @state_ready 100
 
   @type_none 0
   @type_note_on 1
   @type_note_off 2
+  @type_cc 3
+  @type_pb 4
+  @type_active 5
 
   # this message is sent periodically from the keytar
-  def consume(<<254>>,prior) do
-    Map.merge(prior, %{state: @state_none, type: @type_none})
+  def consume(<<0xFE>>,state) do
+    Map.merge(state, %{state: @state_ready, type: @type_active})
   end
   
   # 0x9x = MIDI on, x = channel, -> get note, followed by velocity
-  def consume(<<9::4,channel::4>>,prior) do
-    Map.merge(prior, %{state: @state_get_note, type: @type_note_on, channel: channel})
+  def consume(<<0x9::4,channel::4>>,state) do
+    Map.merge(state, %{state: @state_get_note, type: @type_note_on, channel: channel})
   end
   
-  # 0x9x = MIDI off, x = channel, -> get note
-  def consume(<<8::4,channel::4>>,prior) do
-    Map.merge(prior, %{state: @state_get_note, type: @type_note_off, channel: channel})
+  # 0x8x = MIDI off, x = channel, -> get note
+  def consume(<<0x8::4,channel::4>>,state) do
+    Map.merge(state, %{state: @state_get_note, type: @type_note_off, channel: channel})
   end
   
   # add midi note to map -> get velocity
-  def consume(byte,%{state: @state_get_note}=prior) do
+  def consume(byte,%{state: @state_get_note}=state) do
     <<note>> = byte
-    Map.merge(prior, %{state: @state_get_velocity, note: note})
+    Map.merge(state, %{state: @state_get_velocity, note: note})
   end
   
   # add velocity to map -> ready to be used
-  def consume(byte,%{state: @state_get_velocity}=prior) do
+  def consume(byte,%{state: @state_get_velocity}=state) do
     <<velocity>> = byte
-    Map.merge(prior, %{state: @state_ready, velocity: velocity})
+    Map.merge(state, %{state: @state_ready, velocity: velocity})
+  end
+
+  # 0xBx = MIDI control change, -> get cc number, followed by cc value
+  def consume(<<0xB::4,channel::4>>,state) do
+    Map.merge(state, %{state: @state_get_cc_number, type: @type_cc, channel: channel})
+  end
+  # add cc number
+  def consume(byte, %{state: @state_get_cc_number}=state) do
+    <<n>>=byte
+    Map.merge(state, %{state: @state_get_cc_value, cc_number: n})
+  end
+  # add cc value
+  def consume(byte, %{state: @state_get_cc_value}=state) do
+    <<n>>=byte
+    Map.merge(state, %{state: @state_ready, cc_value: n})
   end
   
-  def consume(_,_prior) do
+  # 0xEx = MIDI control change, -> get pitch-bend lsb, followed by msb
+  def consume(<<0xE::4,channel::4>>,state) do
+    Map.merge(state, %{state: @state_get_pb_lsb, type: @type_pb, channel: channel})
+  end
+  # add lsb
+  def consume(byte, %{state: @state_get_pb_lsb}=state) do
+    <<n>>=byte
+    Map.merge(state, %{state: @state_get_pb_msb, bend: n})
+  end
+  # add msb
+  def consume(byte, %{state: @state_get_pb_msb}=state) do
+    <<n>>=byte
+    Map.merge(state, %{state: @state_ready, bend: n*128+state.bend})
+  end
+  
+  def consume(byte,state) do
     # this is a state we don't understand, ignore it and reset
-    # IO.puts "i don't know what to do"
+    <<n>> = byte
+    IO.puts "i don't know what to do with #{n}"
+    IO.inspect state
     %{state: @state_none, type: @type_none}
   end
 
-  def action(%{state: @state_ready}=s, consumer, arg) do
-    consumer.(s, arg)
-    s
+  def action(%{state: @state_ready}=state, consumer, arg) do
+    consumer.(state, arg)
+    # Map.merge(state, %{arg: arg})
+    state
   end
 
-  def action(s,_,_) do
-    s
+  def action(state,_,_) do
+    state
   end
 
   def open(port) do
@@ -85,6 +125,7 @@ defmodule Custom do
     :gen_udp.send(outlet.socket, outlet.addr, outlet.port, msg)
   end
   def consumer(s, outlet) do
+    # IO.inspect s
     case s.type do
       # Midi.note_on ->
       1 ->
@@ -92,13 +133,20 @@ defmodule Custom do
         x = s.note
         y = s.note - 12
         z = s.note + 0.1
-        IO.puts " ON #{s.channel} #{s.note} #{s.velocity} (#{v})"
+        IO.puts "  ON #{s.channel} #{s.note} #{s.velocity} (#{v})"
         wire("v#{v}n#{x}l5 T v#{v+1}n#{y}l5 T v#{v+2}n#{z}l5 T", outlet)
       # Midi.note_off ->
       2 ->
         v = outlet.voice_top
-        IO.puts "OFF #{s.channel} #{s.note} #{s.velocity} (#{v})"
+        IO.puts " OFF #{s.channel} #{s.note} #{s.velocity} (#{v})"
         wire("v#{v}l0 v#{v+1}l0 v#{v+2}l0", outlet)
+      3 ->
+        IO.puts "  CC #{s.channel} #{s.cc_number} #{s.cc_value}"
+      4 ->
+        IO.puts "BEND #{s.channel} #{s.bend}"
+      5 ->
+        # IO.puts "ACTIVE"
+        0
     end
   end
 end
