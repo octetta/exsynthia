@@ -1416,7 +1416,6 @@ int main(int argc, char *argv[]) {
     pthread_t udp_thread;
     pthread_create(&udp_thread, NULL, udp, NULL);
 
-    gettimeofday(&rtns0, NULL);
     fflush(stdout);
 
     signal(SIGABRT, signal_handler);

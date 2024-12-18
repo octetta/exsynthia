@@ -28,12 +28,12 @@ defmodule Drum do
   end
 
   def bass(0, socket) do
-    wire("v0l0v0l0", socket)
+    wire("v35l0v36l0", socket)
   end
 
   def bass(pos, socket) do
     n = (69-12)+pos
-    wire("v0l5n#{n}v1l.1", socket)
+    wire("v35l5n#{n}v36l.1", socket)
   end
 
   def drum(tempo, pos, socket) do
@@ -61,8 +61,8 @@ defmodule Drum do
     wire("<p12 <p13 <p14 <p15 <p16 <p17", socket)
     wire("<p18 <p19 <p20 <p21 <p22 <p23", socket)
     wire("<p24", socket)
-    wire("v1w0f1", socket)
-    wire("v0w0f110F1", socket)
+    wire("v36w0f1", socket)
+    wire("v35w0f110F36", socket)
     wire("v33w7p13", socket)
     wire("v32w7p5", socket)
     wire("v34w7p11", socket)

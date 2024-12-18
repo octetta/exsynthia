@@ -1,12 +1,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#ifdef USE_ALSA
-#include <alsa/asoundlib.h>
-#endif
-
-struct timeval rtns0;
-struct timeval rtns1;
 
 unsigned long long frames_sent = 0;
 long int rtms = 0;
@@ -15,7 +9,7 @@ long int diff = 0;
 #define LATENCY_HACK_MS (100)
 int latency_hack_ms = LATENCY_HACK_MS;
 
-static int audio_buffer_len = 1024;
+static int audio_buffer_len = 2048;
 static int16_t *audio_buffer = NULL;
 static int audio_sample_rate = 44100;
 
@@ -176,13 +170,6 @@ static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput,
             poke[ptr++] = audio_buffer[i];
         }
         frames_sent+=frame_count;
-#if 0
-        gettimeofday(&rtns1, NULL);
-        rtms = TV2MS(rtns1)-TV2MS(rtns0);
-        btms = frames_sent * 1000 / audio_sample_rate;
-        diff = btms - rtms;
-        if (diff > latency_hack_ms) diff -= latency_hack_ms;
-#endif
     }
 }
 
@@ -253,162 +240,6 @@ void MA_audio_close(void) {
 
 // ----------
 
-#ifdef USE_ALSA
-
-// ALSA stuff
-static snd_pcm_t *pcm_handle = NULL;
-static snd_pcm_hw_params_t *hw_params = NULL;
-
-// ALSA error handler
-void check_alsa_error(int err, const char *msg) {
-    if (err < 0) {
-        fprintf(stderr, "%s: %s\n", msg, snd_strerror(err));
-        fflush(stderr);
-        fflush(stdout);
-        // exit(EXIT_FAILURE);
-    }
-}
-
-// ALSA setup
-static int ALSA_open(char *device, char *indev, int sample_rate, int buffer_size) {
-    // printf("setup_alsa : <%s>\n", device);
-    int err;
-
-    // Open ALSA device for playback
-    err = snd_pcm_open(&pcm_handle, device, SND_PCM_STREAM_PLAYBACK, 0);
-    if (err < 0) {
-        check_alsa_error(err, "Cannot open PCM device");
-        return -1;
-    }
-
-    // Allocate hardware parameters
-    err = snd_pcm_hw_params_malloc(&hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_malloc");
-        return -1;
-    }
-    
-    err = snd_pcm_hw_params_any(pcm_handle, hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_any");
-        return -1;
-    }
-
-    // Set hardware parameters
-    err = snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_access");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_S16_LE);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_format");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_channels(pcm_handle, hw_params, 1);  // Mono output
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_channels");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_rate(pcm_handle, hw_params, sample_rate, 0);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_rate");
-        return -1;
-    }
-
-    err = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, buffer_size, 0);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_hw_params_set_period_size");
-        return -1;
-    }
-
-    // Apply hardware parameters
-    err = snd_pcm_hw_params(pcm_handle, hw_params);
-    if (err < 0) {
-        check_alsa_error(err, "Cannot set hardware parameters");
-        return -1;
-    }
-
-    // Free hardware parameters structure
-    snd_pcm_hw_params_free(hw_params);
-
-    // Prepare PCM for playback
-    err = snd_pcm_prepare(pcm_handle);
-    if (err < 0) {
-        check_alsa_error(err, "cannot snd_pcm_prepare");
-        return -1;
-    }
-
-    return 0;
-}
-
-
-void ALSA_audio_close(void) {
-  snd_pcm_close(pcm_handle);
-}
-
-static int ALSA_audio_start(void (*fn)(int16_t*,int)) {
-    int16_t *buffer = audio_buffer;
-    audio_is_running = 1;
-    int err;
-    while (audio_is_running) {
-        fn(buffer, audio_buffer_len);
-
-        if ((err = snd_pcm_wait(pcm_handle, 1000)) < 0) {
-            check_alsa_error(err, "PCM wait failed");
-        }
-        if ((err = snd_pcm_writei(pcm_handle, buffer, audio_buffer_len)) < 0) {
-            if (err == -EPIPE) {
-                // Recover from buffer underrun
-                snd_pcm_prepare(pcm_handle);
-            } else {
-                check_alsa_error(err, "Failed to write to PCM device");
-            }
-        } else {
-            // try to not get too far ahead of realtime...
-            // without this, we get about 24 seconds ahead of realtime!
-            frames_sent+=audio_buffer_len;
-            gettimeofday(&rtns1, NULL);
-            rtms = TV2MS(rtns1)-TV2MS(rtns0);
-            btms = frames_sent * 1000 / audio_sample_rate;
-            diff = btms - rtms;
-            if (diff > latency_hack_ms) {
-                diff -= latency_hack_ms;
-                usleep(diff * 1000);
-            }
-        }
-    }
-    return 0;
-}
-
-static int ALSA_audio_list(char *what, char *filter) {
-    int status;
-    if (what && what[0] == 'p') {
-        what == "pcm";
-    }
-    char *kind = strdup(what);
-    char **hints;
-    status = snd_device_name_hint(-1, kind, (void ***)&hints);
-    if (status < 0) {
-        puts("NOPE");
-    } else {
-        for (char **n = hints; *n != NULL; n++) {
-            char *name = snd_device_name_get_hint(*n, "NAME");
-            if (name != NULL) {
-                puts(name);
-                free(name);
-            }
-        }
-        snd_device_name_free_hint((void **)hints);
-    }
-    free(kind);
-    return 0;
-}
-
-#endif
 
 // -----------
 
@@ -420,22 +251,13 @@ int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
   audio_buffer_len = buffer_len;
   audio_buffer = (int16_t *)malloc(buffer_len * sizeof(int16_t));
   audio_sample_rate = sample_rate;
-  #ifdef USE_ALSA
-  puts("# using raw ALSA");
-  return ALSA_open(outdev, indev, audio_sample_rate, audio_buffer_len);
-  #else
   printf("# using miniaudio v%s from https://miniaud.io\n", MA_VERSION_STRING);
   return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
-  #endif
 }
 
 int audio_start(void (*fn)(int16_t*,int16_t*,int)) {
   audio_is_running = 1;
-  #ifdef USE_ALSA
-  return ALSA_audio_start(fn);
-  #else
   return MA_audio_start(fn);
-  #endif
 }
 
 int audio_stop(void) {
@@ -444,34 +266,17 @@ int audio_stop(void) {
 }
 
 int audio_list(char *what, char *filter) {
-  #ifdef USE_ALSA
-  return ALSA_audio_list(what, filter);
-  #else
   return MA_audio_list(what, filter);
-  #endif
 }
 
 void audio_close(void) {
-  #ifdef USE_ALSA
-  ALSA_audio_close();
-  #else
   MA_audio_close();
-  #endif
 }
 
 char *audio_playbackname(int i) {
-  #ifdef USE_ALSA
-  return "?"
-  #else
   return MA_playbackname(i);
-  #endif   
 }
 
 char *audio_capturename(int i) {
-  //return "?";
-  #ifdef USE_ALSA
-  return "?"
-  #else
   return MA_capturename(i);
-  #endif   
 }
