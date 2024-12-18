@@ -747,7 +747,7 @@ void show_voice(char flag, int voice, char forceshow) {
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
         EXS_FREQSIZE(voice),
         EXS_FREQBASE(voice));
-    if (EXS_TRIGGER(voice) == 0) {
+    if (1 || EXS_TRIGGER(voice) == 0) {
       struct timeval diff;
       int fdiff = EXS_TRIGGERF1(voice) - EXS_TRIGGERF0(voice);
       timersub(&EXS_TRIGGER1(voice), &EXS_TRIGGER0(voice), &diff);

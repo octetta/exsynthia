@@ -58,7 +58,7 @@ voice_delta = 4
 
 active_sense = 0
 
-wire("[34")
+wire("[34:1")
 
 while True:
     out = ser.read(1)
@@ -72,7 +72,7 @@ while True:
       print(" on", key, v, voice_next, voice_next+1, voice_next+2)
       key_uses_note[key] = voice_next
       voice_map[voice_next] = key
-      wire(f"v{voice_next}n{key}l5v{voice_next+1}n{key+.1}l{vel}v{voice_next+2}n{key/2}l{vel}")
+      wire(f"v{voice_next}n{key}l5? v{voice_next+1}n{key+.1}l{vel}? v{voice_next+2}n{key/2}l{vel}?")
       voice_next += voice_delta
       if voice_next >= voice_max:
         voice_next = voice_start
@@ -84,7 +84,7 @@ while True:
       voff = key_uses_note.get(key, -1)
       if voff != -1:
         print("off", key, vel, voff, voff+1, voff+2)
-        wire(f"v{voff}l0v{voff+1}l0v{voff+1}l0v{voff+2}l0")
+        wire(f"v{voff}l0T v{voff+1}l0T v{voff+1}l0v{voff+2}l0T")
         del key_uses_note[key]
     elif n == 254:
       active_sense += 1
