@@ -3,19 +3,8 @@
 
 
 unsigned long long frames_sent = 0;
-long int rtms = 0;
-long int btms = 0;
-long int diff = 0;
-#define LATENCY_HACK_MS (100)
-int latency_hack_ms = LATENCY_HACK_MS;
-
-static int audio_buffer_len = 2048;
-static int16_t *audio_buffer = NULL;
-static int audio_sample_rate = 44100;
 
 static int audio_is_running = 0;
-
-#define TV2MS(t) ((t.tv_sec*1000)+(t.tv_usec/1000))
 
 // ---------------
 
@@ -161,14 +150,8 @@ static int MA_audio_list(char *what, char *filter) {
 static void (*audio_fn)(int16_t*,int16_t*,int) = NULL;
 
 static void audio_data_cb(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frame_count) {
-    if (audio_fn) {
-        audio_fn(audio_buffer, (int16_t *)pInput, frame_count);
-        int16_t *poke = (int16_t *)pOutput;
-        int ptr = 0;
-        for (int i=0; i<frame_count; i++) {
-            poke[ptr++] = audio_buffer[i];
-            poke[ptr++] = audio_buffer[i];
-        }
+    if (audio_fn && audio_is_running) {
+        audio_fn((int16_t *)pOutput, (int16_t *)pInput, frame_count);
         frames_sent+=frame_count;
     }
 }
@@ -248,11 +231,8 @@ int audio_running(void) {
 }
 
 int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
-  audio_buffer_len = buffer_len;
-  audio_buffer = (int16_t *)malloc(buffer_len * sizeof(int16_t));
-  audio_sample_rate = sample_rate;
   printf("# using miniaudio v%s from https://miniaud.io\n", MA_VERSION_STRING);
-  return MA_audio_open(outdev, indev, audio_sample_rate, audio_buffer_len);
+  return MA_audio_open(outdev, indev, sample_rate, buffer_len);
 }
 
 int audio_start(void (*fn)(int16_t*,int16_t*,int)) {

@@ -23,20 +23,22 @@ ifeq ($(shell uname), Linux)
 LIBS += -lasound -latomic
 endif
 
+DEBUG = -ggdb
+
 minietf.o : minietf.c minietf.h
-	gcc -c minietf.c
+	gcc $(DEBUG) -c minietf.c
 
 miniwav.o : miniwav.c miniwav.h
-	gcc -c miniwav.c
+	gcc $(DEBUG) -c miniwav.c
 
 linenoise.o : linenoise.c linenoise.h
-	gcc -c linenoise.c
+	gcc $(DEBUG) -c linenoise.c
 
 audio.o : audio.c audio.h
-	gcc -c audio.c
+	gcc $(DEBUG) -c audio.c
 
 exsynthia: exsynthia.c $(MYLIBS) korg/korg.h
-	gcc -g -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS)
+	gcc $(DEBUG) -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS)
 
 mf0: mf0.c
 	gcc mf0.c -o mf0

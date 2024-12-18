@@ -1,6 +1,7 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -593,29 +594,27 @@ char theplayback[1024] = DEFAULT_DEVICE;
 char thecapture[1024] = DEFAULT_DEVICE;
 
 static int _user_running = 1;
+int user_running(void) { return _user_running; }
+void user_start(void) { _user_running = 1; }
+void user_stop(void) { _user_running = 0; }
 
-int user_running(void) {
-    return _user_running;
-}
-
-void user_start(void) {
-    _user_running = 1;
-}
-
-void user_stop(void) {
-    _user_running = 0;
-}
+static int _udp_running = 1;
+int udp_running(void) { return _udp_running; }
+void udp_start(void) { _udp_running = 1; }
+void udp_stop(void) { _udp_running = 0; }
 
 int wire(char *line, int *thisvoice, char *output);
 
 int etf_fdin = -1;
 int etf_fdout = -1;
 
+#define RUNNING (user_running() && udp_running())
+
 void *etf(void *arg) {
     int voice = 0;
     struct etf_tuple tuple;
     char output = 0;
-    while (user_running()) {
+    while (RUNNING) {
         if (etf_fdin < 0 || etf_fdout < 0) {
             // puts("NO");
             sleep(1);
@@ -668,20 +667,28 @@ void *udp(void *arg) {
       puts("udp thread cannot run");
       return NULL;
     }
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval));
     int voice = 0;
     struct sockaddr_in client;
     unsigned int client_len = sizeof(client);
     char line[1024];
     char output = 0;
-    while (user_running()) {
+    while (RUNNING) {
         int n = recvfrom(sock, line, sizeof(line), 0, (struct sockaddr *)&client, &client_len);
         if (n > 0) {
           line[n] = '\0';
           int r = wire(line, &voice, &output);
         } else {
+          if (errno = EAGAIN) continue;
+          printf("recvfrom = %d ; errno = %d\n", n, errno);
           perror("recvfrom");
         }
     }
+    udp_stop();
+    user_stop();
     return NULL;
 }
 
@@ -907,7 +914,9 @@ int wire(char *line, int *thisvoice, char *output) {
                 case 'q':
                     p++;
                     puts("");
-                    user_stop();
+                    //user_stop();
+                    //audio_stop();
+                    //udp_stop();
                     return -1;
                     break;
                 case 'l':
@@ -1246,16 +1255,18 @@ void *user(void *arg) {
     linenoiseHistoryLoad(HISTORY_FILE);
     usleep(5 * 100 * 1000);
     char output = 1;
-    while (1) {
+    while (RUNNING) {
         char *line = linenoise("> ");
         if (line == NULL) break;
         if (strlen(line) == 0) continue;
         linenoiseHistoryAdd(line);
         int n = wire(line, &voice, &output);
         linenoiseFree(line);
+        if (n < 0) break;
     }
     linenoiseHistorySave(HISTORY_FILE);
     user_stop();
+    udp_stop();
     return NULL;
 }
 
@@ -1275,11 +1286,15 @@ int16_t *waves[PWAVEMAX] = {
     pwave_none,
 };
 
-void engine(int16_t *buffer, int16_t *capture, int period_size) {
+void engine(int16_t *playback, int16_t *capture, int frame_count) {
     int32_t b = 0;
     // TODO process EGs here
-    for (int n = 0; n < period_size; n++) {
-        buffer[n] = 0;
+    int16_t *outgoing = playback;
+    int16_t *incoming = capture;
+    for (int n = 0; n < frame_count; n++) {
+        outgoing[n] = 0;
+        outgoing[n+1] = 0;
+        int32_t incoming_avg = (incoming[n] + incoming[n+1]) / 2;
         for (int i=0; i<VOICES; i++) {
             EXS_LASTSAMPLE(i) = 0;
             if (EXS_WAVE(i) == EXWAVENONE) continue;
@@ -1291,7 +1306,7 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
               EXS_TRIGGER(i) = 0;
             }
             if (capture && EXS_WAVE(i) == EXWAVEUSR3) {
-              b = (capture[i*2] + capture[i*2+1]) / 2; // this assumes capture is stereo !?!
+              b = incoming_avg;
             } else {
               b = wave_next(i);
             }
@@ -1316,8 +1331,15 @@ void engine(int16_t *buffer, int16_t *capture, int period_size) {
                 b = EXS_SHS(i);
             }
             EXS_LASTSAMPLE(i) = b;
-            if (!EXS_ISMOD(i)) buffer[n] += b;
+            if (!EXS_ISMOD(i)) {
+              *outgoing += b;
+              *(outgoing+1) += b;
+            }
         }
+        outgoing++;
+        outgoing++;
+        incoming++;
+        incoming++;
     }
 }
 
@@ -1409,12 +1431,13 @@ int main(int argc, char *argv[]) {
     pthread_create(&user_thread, NULL, user, NULL);
     pthread_detach(user_thread);
 
-    pthread_t etf_thread;
-    pthread_create(&etf_thread, NULL, etf, NULL);
-    pthread_detach(etf_thread);
+    //pthread_t etf_thread;
+    //pthread_create(&etf_thread, NULL, etf, NULL);
+    //pthread_detach(etf_thread);
 
     pthread_t udp_thread;
     pthread_create(&udp_thread, NULL, udp, NULL);
+    pthread_detach(udp_thread);
 
     fflush(stdout);
 
@@ -1427,18 +1450,19 @@ int main(int argc, char *argv[]) {
     } else {
       printf("# audio state %s\n", audio_state());
       audio_start(engine);
-      while (audio_running() && user_running()) {
-        sleep(1);
-      }
+      while (user_running()) sleep(1);
+      audio_stop();
+      while (audio_running()) sleep(1);
       audio_close();
     }
+    while (udp_running()) sleep(1);
 
-    pthread_cancel(user_thread);
-    pthread_cancel(etf_thread);
-    pthread_cancel(udp_thread);
+    //pthread_cancel(user_thread);
+    //pthread_cancel(etf_thread);
+    //pthread_cancel(udp_thread);
 
     pthread_join(user_thread, NULL);
-    pthread_join(etf_thread, NULL);
+    //pthread_join(etf_thread, NULL);
     pthread_join(udp_thread, NULL);
 
     return 0;
