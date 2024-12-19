@@ -1,7 +1,6 @@
-#!/bin/env tclsh
 #!/bin/sh
 # \
-# exec ./tclkit "$0" "$@" && exit
+exec tclsh "$0" "$@" && exit
 package require Tk
 package require udp
 
@@ -23,9 +22,9 @@ proc wire {msg} {
     puts -nonewline $::sock $msg
 }
 
-set voice 1
+set voice 36
 
-wire v${::voice}w0f110
+# wire v${::voice}w0f110G1F110R7l1
 
 set FO 0
 pack [scale .fo -orient hor -variable FO] -fill x
@@ -45,14 +44,17 @@ pack [scale .rm -orient hor -variable RM] -fill x
 
 bind .cvs <B1-Motion> {
     set x "%x"
+    set x [expr { $x / 10.0 }]
     set y "%y"
-    wire v${::voice}f${x}
-    .cvs itemconfig ct0 -text "v${::voice}f%x"
+    set y [expr { $y / 50.0 }]
+    # wire v${::voice}F${x}R${y}
+    wire v${::voice}f${x}a${y}
+    .cvs itemconfig ct0 -text "v${::voice} f${::x} a${::y}"
 }
 
 bind .cvs <Button-1> {
     set x "%x"
     set y "%y"
-    wire v1f${x}
-    .cvs itemconfig ct0 -text "v1f%x"
+    wire v1F${x}R${y}
+    .cvs itemconfig ct0 -text "v1F%xR%y"
 }
