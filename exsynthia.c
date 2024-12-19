@@ -300,9 +300,9 @@ void env_off(int v) {
 
 #endif
 
-double oft[VOICES];
-int ofg[VOICES];
-double ofgd[VOICES];
+//double oft[VOICES];
+//int ofg[VOICES];
+//double ofgd[VOICES];
 
 #define EXS_GATE(voice)       exvoice[voice][EXGATE].b
 #define EXS_WAVE(voice)       exvoice[voice][EXWAVE].i
@@ -438,6 +438,7 @@ union ExVoice {
 };
 
 union ExVoice exvoice[VOICES][EXMAXCOLS];
+union ExVoice *exvoice_xyz[EXMAXCOLS];
 
 // Q17.15
 #define DDS_FRAC_BITS (15)
@@ -737,7 +738,7 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].sustain_level);
 #endif
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
-    if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
+    //if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
     printf(" b%d", EXS_FREQONE(voice)==0);
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
@@ -971,10 +972,10 @@ int wire(char *line, int *thisvoice, char *output) {
             int m = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             EXS_ISMOD(voice) = m;
-        } else if (c == 'G') {
-            int g = mytol(&line[p], &valid, &next);
-            if (!valid) break; else p += next-1;
-            ofg[voice] = g;
+        //} else if (c == 'G') {
+        //    int g = mytol(&line[p], &valid, &next);
+        //    if (!valid) break; else p += next-1;
+        //    ofg[voice] = g;
         } else if (c == 'S') {
             int v = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1033,17 +1034,19 @@ int wire(char *line, int *thisvoice, char *output) {
             double f = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (f >= 0.0) {
-                if (ofg[voice] > 0) {
-                    double d = f - EXS_FREQ(voice);
-                    ofgd[voice] = d / (double)ofg[voice];
-                    oft[voice] = f;
-                    f += d;
-                    EXS_FREQ(voice) = f;
-                    wave_freq(voice, f);
-                } else {
-                    EXS_FREQ(voice) = f;
-                    wave_freq(voice, f);
-                }
+                // if (ofg[voice] > 0) {
+                //     double d = f - EXS_FREQ(voice);
+                //     //ofgd[voice] = d / (double)ofg[voice];
+                //     //oft[voice] = f;
+                //     f += d;
+                //     EXS_FREQ(voice) = f;
+                //     wave_freq(voice, f);
+                // } else {
+                //     EXS_FREQ(voice) = f;
+                //     wave_freq(voice, f);
+                // }
+                EXS_FREQ(voice) = f;
+                wave_freq(voice, f);
             }
         } else if (c == 'v') {
             int n = mytol(&line[p], &valid, &next);
