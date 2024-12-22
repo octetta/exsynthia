@@ -42,19 +42,26 @@ pack [scale .rm -orient hor -variable RM] -fill x
 # add canvas items
 .cvs create text 400 300 -text "?" -tag ct0
 
-bind .cvs <B1-Motion> {
-    set x "%x"
+
+proc doit {x y} {
     set x [expr { $x / 10.0 }]
-    set y "%y"
     set y [expr { $y / 50.0 }]
-    # wire v${::voice}F${x}R${y}
     wire v${::voice}f${x}a${y}
-    .cvs itemconfig ct0 -text "v${::voice} f${::x} a${::y}"
+    return "$x $y"
 }
 
+# this one is for subsequent moves
+bind .cvs <B1-Motion> {
+  set l [doit "%x" "%y"]
+  set x [lindex $l 0]
+  set y [lindex $l 1]
+  .cvs itemconfig ct0 -text "v${::voice} f${x} a${y}"
+}
+
+# this one is for the initial press
 bind .cvs <Button-1> {
-    set x "%x"
-    set y "%y"
-    wire v1F${x}R${y}
-    .cvs itemconfig ct0 -text "v1F%xR%y"
+  set l [doit "%x" "%y"]
+  set x [lindex $l 0]
+  set y [lindex $l 1]
+  .cvs itemconfig ct0 -text "v${::voice} f${x} a${y}"
 }
