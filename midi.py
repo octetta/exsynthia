@@ -58,7 +58,8 @@ voice_delta = 4
 
 active_sense = 0
 
-wire("[34:1")
+wire("[34")
+# wire(":1")
 
 while True:
     out = ser.read(1)

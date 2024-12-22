@@ -828,7 +828,7 @@ void trigger_active(char *output) {
         wire(wstr, &copyvoice, &output);
         #else
         if (velocity > 0.0) {
-            if (output) printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n", voice, wave, freq, velocity, top, bot);
+            // if (output) printf("# voice:%d wave:%d freq:%g velocity:%g top:%d bot:%d\n", voice, wave, freq, velocity, top, bot);
             EXS_FREQACC(voice) = 0;
             EXS_FREQACTIVE(voice) = 1;
             calc_ratio(voice);
