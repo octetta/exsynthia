@@ -200,7 +200,9 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
     config.capture.shareMode = ma_share_mode_shared;
   }
 
-  config.periodSizeInFrames = buffer_len;
+  //config.periodSizeInFrames = buffer_len;
+  config.periodSizeInMilliseconds = 1;
+  config.periods = 1;
 
   if (ma_device_init(&context, &config, &device) != MA_SUCCESS) {
     // printf("failed to open I/O devices\n");
