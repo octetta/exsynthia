@@ -9,9 +9,9 @@ digraph g {
 
     wp [/* penwidth=6, */ label=<wire<br/>protocol>, shape=circle]
 
-    waveform [shape=box, style=rounded]
-    frequency [shape=box, style=rounded]
-    amplitude [shape=box, style=rounded]
+    waveform [label=<waveform> shape=box, style=rounded]
+    frequency [label=<frequency> shape=box, style=rounded]
+    amplitude [label=<amplitude> shape=box, style=rounded]
 
     voice [label=<voice<sub>x</sub>>, shape=circle]
 
@@ -19,11 +19,13 @@ digraph g {
 
     out [label=<audio<br/>out>, shape=box]
 
+    // yck [image="wheel.png"];
+
     wp -> amplitude -> voice
     wp -> waveform -> voice
     wp -> frequency -> voice
 
-    modf -> frequency [style=wavy]
+    modf -> frequency
 
     voice -> out
 }
