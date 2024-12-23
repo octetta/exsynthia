@@ -25,8 +25,9 @@
 
 #include <sys/time.h>
 
-// inspired by AMY :)
+static int ms = 5;
 
+// inspired by AMY :)
 enum {
     EXWAVESINE,     // 0
     EXWAVESQR,      // 1
@@ -951,7 +952,9 @@ int wire(char *line, int *thisvoice, char *output) {
                 // printf("# btms %ldms\n", btms);
                 // printf("# diff %ldms\n", btms-rtms);
                 // printf("# L%d\n", latency_hack_ms);
-                if (*output) printf("# -d%s\n", theplayback);
+                if (*output) printf("# -m%d\n", ms);
+                if (*output) printf("# -p%s\n", theplayback);
+                if (*output) printf("# -c%s\n", thecapture);
                 if (*output) printf("# frames sent %lld\n", frames_sent);
             } else {
                 int i = voice;
@@ -1346,6 +1349,7 @@ void engine(int16_t *playback, int16_t *capture, int frame_count) {
     }
 }
 
+
 int main(int argc, char *argv[]) {
     char playbackname[1024] = DEFAULT_DEVICE;
     char capturename[1024] = DEFAULT_DEVICE;
@@ -1365,6 +1369,9 @@ int main(int argc, char *argv[]) {
                   break;
               case 'c':
                   strcpy(capturename, &argv[i][2]);
+                  break;
+              case 'm':
+                  ms = atoi(&argv[i][2]);
                   break;
               }
             }
@@ -1448,7 +1455,7 @@ int main(int argc, char *argv[]) {
 
     printf("# using playback device %d -> \"%s\"\n", playbackindex, audio_playbackname(playbackindex));
     printf("# using capture device %d -> \"%s\"\n", captureindex, audio_capturename(captureindex));
-    if (audio_open(theplayback, thecapture, SAMPLE_RATE, BUFFER_SIZE) != 0) {
+    if (audio_open(theplayback, thecapture, SAMPLE_RATE, 0, ms, 1) != 0) {
         puts("WTF?");
     } else {
       printf("# audio state %s\n", audio_state());

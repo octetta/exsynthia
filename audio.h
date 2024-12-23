@@ -8,7 +8,7 @@
 #define AUDIO_NO_MATCH (1000)
 
 int audio_list(char *what, char *filter);
-int audio_open(char *outdev, char *indev, int sample_rate,  int buffer_len);
+int audio_open(char *outdev, char *indev, int sample_rate,  int buffer_len, int ms, int period);
 int audio_start(void (*fn)(int16_t*,int16_t*,int));
 int audio_running(void);
 int audio_stop(void);

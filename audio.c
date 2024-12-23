@@ -165,7 +165,7 @@ static void audio_notification_cb(const ma_device_notification* pNotification) {
   return;
 }
 
-static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
+static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_len, int ms, int period) {
     MA_init();
     if (outdev == NULL) return -1;
     if (outdev[0] == '\0') return -1;
@@ -201,8 +201,8 @@ static int MA_audio_open(char *outdev, char *indev, int sample_rate, int buffer_
   }
 
   //config.periodSizeInFrames = buffer_len;
-  config.periodSizeInMilliseconds = 1;
-  config.periods = 1;
+  config.periodSizeInMilliseconds = ms;
+  config.periods = period;
 
   if (ma_device_init(&context, &config, &device) != MA_SUCCESS) {
     // printf("failed to open I/O devices\n");
@@ -232,9 +232,9 @@ int audio_running(void) {
     return audio_is_running;
 }
 
-int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len) {
+int audio_open(char *outdev, char *indev, int sample_rate, int buffer_len, int ms, int period) {
   printf("# using miniaudio v%s from https://miniaud.io\n", MA_VERSION_STRING);
-  return MA_audio_open(outdev, indev, sample_rate, buffer_len);
+  return MA_audio_open(outdev, indev, sample_rate, buffer_len, ms, period);
 }
 
 int audio_start(void (*fn)(int16_t*,int16_t*,int)) {
