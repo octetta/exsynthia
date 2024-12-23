@@ -1,5 +1,20 @@
 #!/usr/bin/env tclsh
 
+set pad pads.txt
+
+# puts "argc $argc"
+
+if {$argc > 0} {
+  set fn [lindex $argv 0]
+  if {[file exists $fn]} {
+    set pad $fn
+  }
+}
+
+# puts "pad $pad"
+
+# exit
+
 package require udp
 
 set addr 127.0.0.1
@@ -48,7 +63,8 @@ entry .w0.f0.c2 -width 8 -textvariable new_port
 grid .w0.f0.c1 -row 0 -column 0
 grid .w0.f0.c2 -row 0 -column 1
 
-button .w0.l -text load -command {loader pads.txt}
+
+button .w0.l -text load -command {loader $pad}
 grid .w0.l -row [expr $max+1] -column 0
 
 pack .w0
@@ -68,4 +84,4 @@ proc loader {file} {
     }
 }
 
-loader pads.txt
+loader $pad

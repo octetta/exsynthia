@@ -33,7 +33,8 @@ defmodule Drum do
 
   def bass(pos, socket) do
     n = (69-12)+pos
-    wire("v35l5n#{n}", socket)
+    #wire("v35l5n#{n}", socket)
+    wire("v35l5", socket)
   end
 
   def drum(tempo, pos, socket) do
@@ -81,4 +82,4 @@ end
 # args = System.argv()
 # tempo = Enum.at(args, 0)
 
-Drum.loop 200
+Drum.loop 220
