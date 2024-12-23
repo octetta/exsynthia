@@ -1,41 +1,30 @@
 
 
-```pikchr
-boxwid = .75
-boxht = .2
-boxrad = 0.05
+```graphviz
+digraph g {
+    rankdir=LR
+    
+    node [margin=0.08 fontname="Arial", fixedsize=false, penwidth=3]
+    edge [penwidth=1.5; arrowsize=.75; minlen=1.99]
 
-down
+    wp [/* penwidth=6, */ label=<wire<br/>protocol>, shape=circle]
 
-ovalht=0
-ovalwid=0
-W0: oval "amplitude"
-line .25 invisible
+    waveform [shape=box, style=rounded]
+    frequency [shape=box, style=rounded]
+    amplitude [shape=box, style=rounded]
 
-A0: oval "waveform"
-L0: line .25 invisible
+    voice [label=<voice<sub>x</sub>>, shape=circle]
 
-F0: oval "frequency"
-line .25 invisible
+    modf [label=<voice<sub>y</sub>>, style=dashed, shape=circle]
 
-M0: circle dashed "voice[y]"
-right
-line .25 from A0.e invisible
-arrow .25 invisible
+    out [label=<audio<br/>out>, shape=box]
 
-V0: circle "voice[x]"
+    wp -> amplitude -> voice
+    wp -> waveform -> voice
+    wp -> frequency -> voice
 
-left
-line 1.2 from A0.e invisible
-P0: circle "wire""protocol"
+    modf -> frequency [style=wavy]
 
-arrow from W0.e to V0 chop
-arrow from A0.e to V0 chop
-arrow from F0.e to V0 chop
-
-arrow from P0 to W0.w chop
-arrow from P0 to A0.w chop
-arrow from P0 to F0.w chop
-
-arrow dashed from M0 to F0 chop
+    voice -> out
+}
 ```
