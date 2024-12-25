@@ -1,5 +1,5 @@
 # "guitar"
 
-v40 w27 v41 w28 d0 v42 w28
-v44 w27 v45 w28 d0 v46 w28
-v48 w27 v49 w28 d0 v50 w28
+v40 w27 v41 D1 w28 d0 v42 D-1 w28
+v44 w27 v45 D1 w28 d0 v46 D-1 w28
+v48 w27 v49 D1 w28 d0 v50 D-1 w28

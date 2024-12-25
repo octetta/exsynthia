@@ -73,7 +73,7 @@ while True:
       print(" on", key, v, voice_next, voice_next+1, voice_next+2)
       key_uses_note[key] = voice_next
       voice_map[voice_next] = key
-      wire(f"v{voice_next}n{key}l5? v{voice_next+1}n{key+.1}l{vel}? v{voice_next+2}n{key/2}l{vel}?")
+      wire(f"v{voice_next}n{key}l5 v{voice_next+1}n{key}l{vel}? v{voice_next+2}n{key}l{vel}?")
       voice_next += voice_delta
       if voice_next >= voice_max:
         voice_next = voice_start
