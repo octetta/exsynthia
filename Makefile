@@ -37,8 +37,8 @@ linenoise.o : linenoise.c linenoise.h
 audio.o : audio.c audio.h
 	gcc $(DEBUG) -c audio.c
 
-exsynthia: exsynthia.c $(MYLIBS) korg/korg.h
-	gcc $(DEBUG) -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS)
+exsynthia: exsynthia.c $(MYLIBS) korg/korg.h plot.c
+	gcc $(DEBUG) -I$(MYINC) exsynthia.c $(MYLIBS) -o $@ $(LIBS) plot.c
 
 mf0: mf0.c
 	gcc mf0.c -o mf0

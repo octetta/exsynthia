@@ -694,7 +694,11 @@ void *udp(void *arg) {
     return NULL;
 }
 
+#include <sys/param.h>
+#include "plot.h"
+
 void dump(int16_t *wave, int len) {
+#if 0
     int c = 0;
     char template[] = "_waveXXXXXX";
     int fd = mkstemp(template);
@@ -710,6 +714,31 @@ void dump(int16_t *wave, int len) {
         write(fd, buf, strlen(buf));
     }
     close(fd);
+#endif
+    int x;
+    int y;
+    int z;
+    cls();
+    int min = INT16_MAX;
+    int max = INT16_MIN;
+    for (int i=0; i<len; i++) {
+      min = MIN(wave[i], min);
+      max = MAX(wave[i], max);
+    }
+    z = map(0, -min, -max, 0, plot_rows());
+    printf("# len:%d min:%d max:%d\n", len, min, max);
+    for (int i=0; i<len; i++) {
+      x = map(i, 0, len, 0, plot_cols());
+      setrgb(x, z, YELLOW_RGB);
+    }
+    for (int i=0; i<len; i++) {
+      int this = wave[i];
+      x = map(i, 0, len, 0, plot_cols()-1);
+      y = map(this, -min, -max, 0, plot_rows()-1);
+      setrgb(x, y, GREEN_RGB);
+      //printf("(%d,%d)\n", x, y);
+    }
+    plot();
 }
 
 // Fixed point configuration
@@ -949,13 +978,7 @@ int wire(char *line, int *thisvoice, char *output) {
                     if (i == voice) flag = '*';
                     if (*output) show_voice(flag, i, 0);
                 }
-                // printf("# rtms %ldms\n", rtms);
-                // printf("# btms %ldms\n", btms);
-                // printf("# diff %ldms\n", btms-rtms);
-                // printf("# L%d\n", latency_hack_ms);
-                if (*output) printf("# -m%d\n", ms);
-                if (*output) printf("# -p%s\n", theplayback);
-                if (*output) printf("# -c%s\n", thecapture);
+                if (*output) printf("# -p%s -c%s -m%d\n", theplayback, thecapture, ms);
                 if (*output) printf("# frames sent %lld\n", frames_sent);
             } else {
                 int i = voice;
@@ -1170,6 +1193,7 @@ int wire(char *line, int *thisvoice, char *output) {
             char peek = line[p];
             if (peek >= '0' && peek <= '9') {
                 int n = mytol(&line[p], &valid, &next);
+                if (!valid) break; else p += next-1;
                 switch (n) {
                     case EXWAVESINE:
                     case EXWAVESQR:
@@ -1184,6 +1208,12 @@ int wire(char *line, int *thisvoice, char *output) {
                     case EXWAVEKRG5: case EXWAVEKRG6: case EXWAVEKRG7: case EXWAVEKRG8:
                     case EXWAVEKRG9: case EXWAVEKRG10: case EXWAVEKRG11: case EXWAVEKRG12:
                     case EXWAVEKRG13: case EXWAVEKRG14: case EXWAVEKRG15: case EXWAVEKRG16:
+                    //
+                    case EXWAVEKRG17: case EXWAVEKRG18: case EXWAVEKRG19:
+                    case EXWAVEKRG20: case EXWAVEKRG21: case EXWAVEKRG22: case EXWAVEKRG23:
+                    case EXWAVEKRG24: case EXWAVEKRG25: case EXWAVEKRG26: case EXWAVEKRG27:
+                    case EXWAVEKRG28: case EXWAVEKRG29: case EXWAVEKRG30: case EXWAVEKRG31:
+                    case EXWAVEKRG32:
                         dump(kwave[n-EXWAVEKRG1], kwave_size[n-EXWAVEKRG1]);
                         break;
                 }
