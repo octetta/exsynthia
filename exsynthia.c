@@ -843,6 +843,7 @@ void trigger_active(char *output) {
 }
 
 void reset_voice(int v) {
+  EXS_PATCH(v) = -1;
   EXS_WAVE(v) = EXWAVESINE;
   EXS_AMPTOP(v) = 0;
   EXS_AMPBOT(v) = 0;

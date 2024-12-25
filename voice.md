@@ -27,6 +27,8 @@ digraph g {
 
     modf -> frequency
 
+    speaker [shape=none, label="", image="shape_custom.svg"]
+
     voice -> out
 }
 ```
