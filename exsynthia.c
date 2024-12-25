@@ -477,7 +477,8 @@ union ExVoice *exvoice_xyz[EXMAXCOLS];
 
 void wave_freq(int voice, double f) {
     if (EXS_DETUNE(voice) != 0) {
-      f += EXS_DETUNE(voice);
+      //f += EXS_DETUNE(voice);
+      f *= EXS_DETUNE(voice);
     }
     if (EXS_WAVE(voice) == EXWAVEPCM) {
         EXS_FREQINC(voice) = (int32_t)((f / 440.0) * DDS_SCALE);
