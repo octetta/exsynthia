@@ -25,7 +25,7 @@
 
 #include <sys/time.h>
 
-static int ms = 5;
+static int ms = 2;
 
 // inspired by AMY :)
 enum {
@@ -1350,6 +1350,30 @@ void engine(int16_t *playback, int16_t *capture, int frame_count) {
     }
 }
 
+#define MAJOR 0
+#define MINOR 5 // 0=amy-message 1=rototem, 2=rattle(c), 3=rattle(zig) 4=rattle(go)
+#define RELEASE 88
+
+void usage(char *a, int maj, int min, int rel) {
+  printf("%s version %d.%d.%d\n", a, maj, min, rel);
+  puts("-l  list playback/capture devices");
+  puts("-p# use playback device #");
+  puts("-c# use capture device #");
+  puts("-m# set desired MA latence of # msec");
+  puts("-h  show help/options");
+  exit(0);
+}
+
+#include <sys/mman.h>
+
+void performant(void) {
+  int r = mlockall(MCL_CURRENT | MCL_FUTURE);
+  int policy;
+  struct sched_param param;
+  pthread_getschedparam(pthread_self(), &policy, &param);
+  param.sched_priority = sched_get_priority_max(policy);
+  pthread_setschedparam(pthread_self(), policy, &param);
+}
 
 int main(int argc, char *argv[]) {
     char playbackname[1024] = DEFAULT_DEVICE;
@@ -1374,6 +1398,11 @@ int main(int argc, char *argv[]) {
               case 'm':
                   ms = atoi(&argv[i][2]);
                   break;
+              case '?':
+              case 'h':
+              default:
+                usage(argv[0], MAJOR, MINOR, RELEASE);
+                break;
               }
             }
         }
@@ -1435,6 +1464,8 @@ int main(int argc, char *argv[]) {
             4000,    // 4 second release
             ENV_SCALE, (ENV_SCALE * 7) / 10);
     }
+
+    performant();
 
     user_start();
 
