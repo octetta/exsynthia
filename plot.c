@@ -3,8 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#define ROWS (36)
-#define COLS (158)
+#define ROWS (48)
+#define COLS (128)
 #define _ROWS (ROWS/4)
 #define _ZERO (_ROWS/2)
 #define _COLS (COLS/2)

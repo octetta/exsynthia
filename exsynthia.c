@@ -197,46 +197,75 @@ void make_sqr(int16_t *table, int size) {
     }
 }
 
+int signof(int n) {
+  if (n < 0) return -1;
+  if (n >= 0) return 1;
+}
+
+int firstcross(int16_t *table, int size) {
+    // find where the first zero crossing happens
+    int last = signof(table[0]);
+    int this = 0;
+    for (size_t i = 1; i < size; ++i) {
+      this = signof(table[i]);
+      if (this != last) {
+        return i;
+      }
+    }
+    return 0;
+}
+
 void make_tri(int16_t *table, int size) {
-    int quarter = size / 4;
-    for (int i = 0; i < size; i++) {
-        if (i < quarter) { // 0 -> 1/4
-            table[i] = (4 * MAX_VALUE * i) / size;
-        } else if (i < 2 * quarter) { // 1/4 -> 1/2
-            table[i] = MAX_VALUE - (4 * MAX_VALUE * (i - quarter)) / size;
-        } else if (i < 3 * quarter) { // 1/2 -> 3/4
-            table[i] = 0 - (4 * MAX_VALUE * (i - 2 * quarter)) / size;
-        } else { // 3/4 -> 4/4
-            table[i] = MIN_VALUE + (4 * MAX_VALUE * (i - 3 * quarter)) / size;
+    const int16_t max_amplitude = INT16_MAX;
+    const size_t half_period = size / 2;
+
+    for (size_t i = 0; i < size; ++i) {
+        if (i < half_period) {
+            // Rising ramp: from 0 to max_amplitude
+            table[i] = (int16_t)((2 * max_amplitude * i + half_period - 1) / half_period);
+        } else {
+            // Falling ramp: from max_amplitude back to 0
+            table[i] = (int16_t)((2 * max_amplitude * (size - i - 1) + half_period - 1) / half_period);
         }
+        // Shift wave to oscillate symmetrically around 0
+        table[i] -= max_amplitude;
+    }
+    int x = firstcross(table, size);
+    int t;
+    for (size_t i = 0; i<size-x; i++) {
+      t = table[i];
+      table[i] = table[(x+i)%size];
+      table[(x+i)%size] = t;
     }
 }
 
 void make_sawup(int16_t *table, int size) {
     double acc = MIN_VALUE;
-    double rate = (double)MAX_VALUE*2.0/(double)size*2;
-    for (int i = 0; i < size/2; i++) {
+    double rate = (double)MAX_VALUE*2.0/(double)size;
+    for (int i = 0; i < size; i++) {
         table[i] = (int16_t)acc;
         acc += rate;
     }
-    acc = MIN_VALUE;
-    for (int i = size/2; i < size; i++) {
-        table[i] = (int16_t)acc;
-        acc += rate;
+    int x = firstcross(table, size);
+    for (size_t i = 0; i<size-x; i++) {
+      int t = table[i];
+      table[i] = table[(x+i)%size];
+      table[(x+i)%size] = t;
     }
 }
 
 void make_sawdown(int16_t *table, int size) {
     double acc = MAX_VALUE;
-    double rate = (double)MAX_VALUE*2.0/(double)size*2;
-    for (int i = 0; i < size/2; i++) {
+    double rate = (double)MAX_VALUE*2.0/(double)size;
+    for (int i = 0; i < size; i++) {
         table[i] = (int16_t)acc;
         acc -= rate;
     }
-    acc = MAX_VALUE;
-    for (int i = size/2; i < size; i++) {
-        table[i] = (int16_t)acc;
-        acc -= rate;
+    int x = firstcross(table, size);
+    for (size_t i = 0; i<size-x; i++) {
+      int t = table[i];
+      table[i] = table[(x+i)%size];
+      table[(x+i)%size] = t;
     }
 }
 
@@ -301,10 +330,6 @@ void env_off(int v) {
 
 #endif
 
-//double oft[VOICES];
-//int ofg[VOICES];
-//double ofgd[VOICES];
-
 #define EXS_GATE(voice)       exvoice[voice][EXGATE].b
 #define EXS_WAVE(voice)       exvoice[voice][EXWAVE].i
 #define EXS_ISMOD(voice)      exvoice[voice][EXISMOD].b
@@ -336,11 +361,14 @@ void env_off(int v) {
 #define EXS_TRIGGERF0(voice)    exvoice[voice][EXTRIGGERF0].u64
 #define EXS_TRIGGERF1(voice)    exvoice[voice][EXTRIGGERF1].u64
 
+#define EXS_DETUNE(voice) exvoice[voice][EXDETUNE].f
+
 enum {
     EXWAVE,  // waveform index
     EXISMOD, // voice is a modulator (no direct sound)
     EXNOTE,  // midi note number double
     EXPATCH, // user wave patch # int
+    EXDETUNE, // detune # signed, float
     //
     EXLASTSAMPLE, // last wave sample
     EXINTERP,     // interpolated wave sample
@@ -448,6 +476,9 @@ union ExVoice *exvoice_xyz[EXMAXCOLS];
 #define DDS_MAGIC (0.32874)
 
 void wave_freq(int voice, double f) {
+    if (EXS_DETUNE(voice) != 0) {
+      f += EXS_DETUNE(voice);
+    }
     if (EXS_WAVE(voice) == EXWAVEPCM) {
         EXS_FREQINC(voice) = (int32_t)((f / 440.0) * DDS_SCALE);
     } else {
@@ -756,6 +787,7 @@ void show_voice(char flag, int voice, char forceshow) {
       if (EXS_FREQ(voice) == 0) return;
     }
     printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
+    if (EXS_DETUNE(voice) != 0) printf(" D%f", EXS_DETUNE(voice));
     if (EXS_INTERP(voice)) printf(" Z1");
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
     if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
@@ -768,7 +800,6 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].sustain_level);
 #endif
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
-    //if (ofg[voice]) printf(" G%d (%f/%f)", ofg[voice], ofgd[voice], oft[voice]);
     printf(" b%d", EXS_FREQONE(voice)==0);
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
@@ -999,10 +1030,10 @@ int wire(char *line, int *thisvoice, char *output) {
             int m = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             EXS_ISMOD(voice) = m;
-        //} else if (c == 'G') {
-        //    int g = mytol(&line[p], &valid, &next);
-        //    if (!valid) break; else p += next-1;
-        //    ofg[voice] = g;
+        } else if (c == 'D') {
+            double d = mytod(&line[p], &valid, &next);
+            if (!valid) break; else p += next-1;
+            EXS_DETUNE(voice) = d;
         } else if (c == 'S') {
             int v = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1061,17 +1092,6 @@ int wire(char *line, int *thisvoice, char *output) {
             double f = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (f >= 0.0) {
-                // if (ofg[voice] > 0) {
-                //     double d = f - EXS_FREQ(voice);
-                //     //ofgd[voice] = d / (double)ofg[voice];
-                //     //oft[voice] = f;
-                //     f += d;
-                //     EXS_FREQ(voice) = f;
-                //     wave_freq(voice, f);
-                // } else {
-                //     EXS_FREQ(voice) = f;
-                //     wave_freq(voice, f);
-                // }
                 EXS_FREQ(voice) = f;
                 wave_freq(voice, f);
             }
