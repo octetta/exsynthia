@@ -25,7 +25,7 @@
 
 #include <sys/time.h>
 
-static int ms = 2;
+static int ms = 10;
 
 // inspired by AMY :)
 enum {
@@ -788,7 +788,7 @@ void show_voice(char flag, int voice, char forceshow) {
       if (EXS_FREQ(voice) == 0) return;
     }
     printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
-    if (EXS_DETUNE(voice) != 0) printf(" D%f", EXS_DETUNE(voice));
+    if (EXS_DETUNE(voice) != 0) printf(" D%g", EXS_DETUNE(voice));
     if (EXS_INTERP(voice)) printf(" Z1");
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
     if (EXS_FREQMOD(voice) >= 0) printf(" F%d", EXS_FREQMOD(voice));
