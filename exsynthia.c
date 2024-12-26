@@ -477,7 +477,6 @@ union ExVoice *exvoice_xyz[EXMAXCOLS];
 
 void wave_freq(int voice, double f) {
     if (EXS_DETUNE(voice) != 0) {
-      //f += EXS_DETUNE(voice);
       f *= EXS_DETUNE(voice);
     }
     if (EXS_WAVE(voice) == EXWAVEPCM) {
@@ -533,7 +532,7 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
         int patch = EXS_PATCH(voice);
         EXS_FREQONE(voice) = uwave_one[patch];
 #if 0
-        printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%f\n",
+        printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%g\n",
             voice,
             wave,
             patch,
@@ -787,7 +786,8 @@ void show_voice(char flag, int voice, char forceshow) {
     //   if (EXS_AMPTOP(voice) == 0) return;
       if (EXS_FREQ(voice) == 0) return;
     }
-    printf("%c v%d w%d f%.4f a%.4f", flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
+    printf("%c v%d w%d f%.4f a%.4f",
+      flag, voice, EXS_WAVE(voice), EXS_FREQ(voice), EXS_AMP(voice) * (1.0 / AFACTOR));
     if (EXS_DETUNE(voice) != 0) printf(" D%g", EXS_DETUNE(voice));
     if (EXS_INTERP(voice)) printf(" Z1");
     if (EXS_ISMOD(voice)) printf(" M%d", EXS_ISMOD(voice));
@@ -805,8 +805,7 @@ void show_voice(char flag, int voice, char forceshow) {
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
     printf(" Q%g", EXS_PAN(voice));
-    printf(" acc:%"PRIu64" inc:%f size:%d freq:%f",
-        (EXS_FREQACC(voice) >> DDS_FRAC_BITS) % EXS_FREQSIZE(voice),
+    printf(" inc:%g len:%d freq:%g",
         (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
         EXS_FREQSIZE(voice),
         EXS_FREQBASE(voice));
@@ -814,7 +813,7 @@ void show_voice(char flag, int voice, char forceshow) {
       struct timeval diff;
       int fdiff = EXS_TRIGGERF1(voice) - EXS_TRIGGERF0(voice);
       timersub(&EXS_TRIGGER1(voice), &EXS_TRIGGER0(voice), &diff);
-      printf(" trigger:%gms, %d frames", (double)(diff.tv_usec)/1000.0, fdiff);
+      printf(" T%gms/%d", (double)(diff.tv_usec)/1000.0, fdiff);
     }
 
     puts("");
@@ -915,7 +914,7 @@ void reset_voice(int v) {
   EXS_ISMOD(v) = 0;
   EXS_AMP(v) = 0;
   calc_ratio(v);
-  wave_init(v, sizeof(pwave_sin)/sizeof(int16_t), EXS_FREQ(v), pwave_sin, v);
+  wave_init(v, pwave_size[EXS_WAVE(v)], EXS_FREQ(v), pwave[EXS_WAVE(v)], v);
   EXS_FREQACTIVE(v) = 0;
 }
 
