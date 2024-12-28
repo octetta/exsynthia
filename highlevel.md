@@ -10,20 +10,20 @@ digraph g {
     console [shape=box, style=rounded]
     socket [shape=box, style=rounded]
 
-    wp [label=<wire<br/>protocol>, shape=circle]
+    wp [label=<wire<br/>protocol>, shape=circle, color=red, penwidth=5]
 
-    voice [label=<voice<sub>0..63</sub>>, shape=circle]
+    voice [label=<sum of<br/>voices<sub>0..63</sub>>, shape=circle, color=green, penwidth=5]
 
-    ma [label=<audio<br/>callback>, shape=circle, style=dashed]
+    ma [label=<audio<br/>callback>, shape=circle, style=dashed, color=blue]
 
-    out [label=<audio<br/>out>, shape=box]
+    out [label=<audio out >, shape=box, style=rounded]
 
     console -> wp
     socket -> wp
 
-    wp -> voice
+    wp -> voice [color=red, penwidth=4]
 
-    voice -> ma
-    ma -> out
+    voice -> ma [color=green, penwidth=4]
+    ma -> out [color=blue, penwidth=4]
 }
 ```

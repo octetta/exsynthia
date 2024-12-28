@@ -9,18 +9,19 @@ digraph g {
 
     keytar [/* penwidth=6, */ label=<MIDI<br/>keytar>, shape=circle]
 
-    opto [label=<opto-<br/>isolator> shape=box, style=rounded]
-    uart [label=<UART<br/>to USB> shape=box, style=rounded]
-    miracle [label=<a miracle<br/>occurs> shape=box]
+    opto [label=<opto-<br/>isolator> shape=circle]
+    uart [label=<UART<br/>to USB> shape=circle]
 
-    wp [label=<wire<br/>protocol> shape=box, style=rounded]
+    subgraph cluster_0 {
+        style=dotted;
+        miracle [label=<MIDI to<br/>wire<br/>protocol> shape=box, style=rounded];
+        socket [label=<socket> shape=box, style=rounded];
+    }
 
-    socket [label=<socket> shape=box, style=rounded]
+    // hideme [style=invisible];
 
-    hideme [style=invisible]
-
-    keytar -> opto -> uart [style=dashed]
-    uart -> miracle -> wp -> socket
-    socket -> hideme [minlen=1.5, style=dashed]
+    keytar -> opto -> uart [style=dashed];
+    uart -> miracle -> socket;
+    // socket -> hideme [minlen=1.5, color=red; penwidth=4];
 }
 ```
