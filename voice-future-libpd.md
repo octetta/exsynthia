@@ -10,19 +10,19 @@ digraph g {
         style=dotted;
         va [label=< voice<br/> adapter>, shape=box, style=rounded, color="#1a9988"];
         pd [label=<<b>pure data</b><br/>patch>; shape=cylinder, color="#eb5600"];
-        libpd [label=<voices<br/>via <b>libpd</b>>, shape=circle, penwidth=5, color=green];
+        libpd [label=<<b>libpd</b>>, shape=box style=rounded, penwidth=3, color=green];
     }
 
+    voices [label=<voices>, shape=circle, color=green, penwidth=5];
     audio [label=<audio<br/>callback>, shape=circle, style=dashed, color=blue];
 
     wp -> va [color=red, penwidth=4];
-    wp -> pd [color=red, penwidth=4];
-
-    pd -> libpd [style=dashed, color="#eb5600"];
-    va -> libpd [style=dashed, color="#1a9988"];
+    va -> pd [penwidth=4, color="#1a9988"];
+    pd -> libpd [penwidth=4, color="#eb5600"];
     
     //pd -> va [direction=none];
 
-    libpd -> audio [penwidth=4, color=green];
+    libpd -> voices [penwidth=4, color=green];
+    voices -> audio [penwidth=4, color=green];
 }
 ```

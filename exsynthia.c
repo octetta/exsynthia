@@ -110,7 +110,7 @@ int16_t pwave_sqr[CYCLE_1HZ];
 int16_t pwave_sawd[CYCLE_1HZ];
 int16_t pwave_sawu[CYCLE_1HZ];
 int16_t pwave_tri[CYCLE_1HZ];
-int16_t pwave_noise[CYCLE_1HZ * 256];
+int16_t pwave_noise[CYCLE_1HZ * 32];
 int16_t pwave_none[1];
 int16_t pwave_cos[CYCLE_1HZ];
 
@@ -133,9 +133,9 @@ void pwave_init(void) {
     make_sine(pwave_sin, pwave_size[EXWAVESINE]);
     pwave_name[EXWAVESINE] = "sine";
 
-    pwave[EXWAVEUSR1] = pwave_sin;
+    pwave[EXWAVEUSR1] = pwave_cos;
     pwave_size[EXWAVEUSR1] = PWAVE_SIZE(pwave_cos);
-    make_sine(pwave_sin, pwave_size[EXWAVEUSR1]);
+    make_cosine(pwave_cos, pwave_size[EXWAVEUSR1]);
     pwave_name[EXWAVEUSR1] = "cosine";
 
     pwave[EXWAVESQR] = pwave_sqr;
@@ -1158,7 +1158,13 @@ int wire(char *line, int *thisvoice, char *output) {
                         base = 440.0;
                         break;
                     case EXWAVEUSR0: // KS
-                    case EXWAVEUSR1: // algo
+                        break;
+                    case EXWAVEUSR1: // algo -> co-opted as cosine
+                        ptr = pwave[EXWAVEUSR1];
+                        len = pwave_size[EXWAVEUSR1];
+                        base = 0;
+                        forceactive = 1;
+                        break;
                     case EXWAVEUSR2: // part
                     case EXWAVEUSR3: // parts
                         break;
