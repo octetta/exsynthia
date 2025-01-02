@@ -130,11 +130,15 @@ int16_t kw30[] = {
 int16_t kw31[] = {
   #include "EXP_4.w3" //	13-16
   };
+int16_t kw32[] = {
+  #include "out.list" //	13-16
+  };
+
 
 
 //
 
-#define KWAVEMAX (32)
+#define KWAVEMAX (33)
 
 int16_t *kwave[KWAVEMAX];
 int kwave_size[KWAVEMAX];
@@ -175,6 +179,7 @@ void korg_init(void) {
   kwave[29] = kw29;
   kwave[30] = kw30;
   kwave[31] = kw31;
+  kwave[32] = kw32;
   //
   kwave_name[0] = "korg-strings";
   kwave_name[1] = "korg-clarinet";
@@ -209,9 +214,11 @@ void korg_init(void) {
   kwave_name[29] = "exp-14";
   kwave_name[30] = "exp-15";
   kwave_name[31] = "exp-16";
+  kwave_name[32] = "out";
 
   for (int i=0; i<KWAVEMAX; i++) {
     kwave_size[i] = 2048;
     kwave_freq[i] = 0;
   }
+  kwave_size[32] = sizeof(kw32) / sizeof(int16_t);
 }
