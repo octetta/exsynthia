@@ -86,10 +86,10 @@ void setrgb(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b) {
 
 void set(int16_t x, int16_t y, int16_t c) {
     int offset;
-    if (x < 0) return;
-    if (y < 0) return;
-    if (x > COLS-1) return;
-    if (y > ROWS-1) return;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x >= COLS-1) x = COLS-1;
+    if (y >= ROWS-1) y = ROWS-1;
     uint16_t p = pixel_map[y % 4][x % 2];
     x /= 2;
     y /= 4;

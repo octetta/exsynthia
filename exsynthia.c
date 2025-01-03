@@ -89,7 +89,7 @@ enum {
 #define CYCLE_1HZ (SAMPLE_RATE * 2)
 #define BUFFER_SIZE (512)  // Number of samples per ALSA period
 
-#define VOICES (52)
+#define VOICES (48)
 
 #define PWAVEMAX (12)
 
@@ -762,7 +762,7 @@ void dump(int16_t *wave, int len) {
     printf("# len:%d min:%d max:%d\n", len, min, max);
     for (int i=0; i<len; i++) {
       x = map(i, 0, len, 0, plot_cols());
-      setrgb(x, z, YELLOW_RGB);
+      setrgb(x, z, RED_RGB);
     }
     for (int i=0; i<len; i++) {
       int this = wave[i];
@@ -781,6 +781,13 @@ void dump(int16_t *wave, int len) {
 #define ENV_MAX INT32_MAX
 
 #define AFACTOR (0.025) // scaling amplitude to match what i hear from AMY
+
+struct timeval e0;
+struct timeval e1;
+struct timeval e2;
+struct timeval e3;
+long ediff;
+long cdiff;
 
 void show_voice(char flag, int voice, char forceshow) {
     if (forceshow == 0) {
@@ -806,17 +813,16 @@ void show_voice(char flag, int voice, char forceshow) {
     printf(" b%d", EXS_FREQONE(voice)==0);
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
-    printf(" Q%g", EXS_PAN(voice));
-    printf(" inc:%g len:%d freq:%g",
-        (double)EXS_FREQINC(voice)/ (double)DDS_SCALE,
-        EXS_FREQSIZE(voice),
-        EXS_FREQBASE(voice));
+    // printf(" Q%g", EXS_PAN(voice));
+    // printf(" inc:%g len:%d freq:%g", (double)EXS_FREQINC(voice)/ (double)DDS_SCALE, EXS_FREQSIZE(voice), EXS_FREQBASE(voice));
+    printf(" inc:%g", (double)EXS_FREQINC(voice)/ (double)DDS_SCALE);
     if (1 || EXS_TRIGGER(voice) == 0) {
       struct timeval diff;
       int fdiff = EXS_TRIGGERF1(voice) - EXS_TRIGGERF0(voice);
       timersub(&EXS_TRIGGER1(voice), &EXS_TRIGGER0(voice), &diff);
       printf(" T%gms/%d", (double)(diff.tv_usec)/1000.0, fdiff);
     }
+
 
     puts("");
 }
@@ -1011,8 +1017,13 @@ int wire(char *line, int *thisvoice, char *output) {
                     if (i == voice) flag = '*';
                     if (*output) show_voice(flag, i, 0);
                 }
-                if (*output) printf("# -p%s -c%s -m%d\n", theplayback, thecapture, ms);
-                if (*output) printf("# frames sent %lld\n", frames_sent);
+
+                if (*output) {
+                    printf("# -p%s -c%s -m%d\n", theplayback, thecapture, ms);
+                    printf("# frames sent %lld\n", frames_sent);
+                    printf("# e:%gms", (double)ediff/1000.0);
+                    printf(" c:%gms\n", (double)cdiff/1000.0);
+                }
             } else {
                 int i = voice;
                 char flag = ' ';
@@ -1351,7 +1362,11 @@ int16_t *waves[PWAVEMAX] = {
     pwave_none,
 };
 
+
 void engine(int16_t *playback, int16_t *capture, int frame_count) {
+    gettimeofday(&e0, NULL);
+    timersub(&e0, &e1, &e3);
+    cdiff = e3.tv_usec;
     int32_t b = 0;
     // TODO process EGs here
     int16_t *outgoing = playback;
@@ -1406,6 +1421,9 @@ void engine(int16_t *playback, int16_t *capture, int frame_count) {
         incoming++;
         incoming++;
     }
+    gettimeofday(&e1, NULL);
+    timersub(&e1, &e0, &e2);
+    ediff = e2.tv_usec;
 }
 
 #define MAJOR 0
