@@ -2,6 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+
+# a = np.array([-32767]*1024)
+# b = np.array([32767]*1024)
+# c=np.concatenate((a,b))
+# np.savetxt("sqr.txt",[c],delimiter=',')
+# np.savetxt("sqr.txt",[c],delimiter=',',fmt='%d')
+
+
 # Original samples (example: sine wave with noise)
 wave_in = np.array([0.0, 0.5, 0.7, 0.5, 0.0, -0.5, -0.7, -0.5])
 

@@ -337,6 +337,7 @@ void env_off(int v) {
 #define EXS_ISMOD(voice)      exvoice[voice][EXISMOD].b
 #define EXS_FREQ(voice)       exvoice[voice][EXFREQ].f
 #define EXS_FREQMOD(voice)    exvoice[voice][EXFREQMOD].i
+#define EXS_FREQMODAMT(voice) exvoice[voice][EXFREQMODAMT].f
 #define EXS_LASTSAMPLE(voice) exvoice[voice][EXLASTSAMPLE].s
 #define EXS_AMP(voice)        exvoice[voice][EXAMP].f
 #define EXS_AMPTOP(voice)     exvoice[voice][EXAMPTOP].i
@@ -355,6 +356,7 @@ void env_off(int v) {
 #define EXS_INTERP(voice)     exvoice[voice][EXINTERP].b
 #define EXS_NOTE(voice)       exvoice[voice][EXNOTE].f
 #define EXS_PATCH(voice)      exvoice[voice][EXPATCH].i
+#define EXS_LINK(voice)       exvoice[voice][EXLINK].i
 #define EXS_PAN(voice)        exvoice[voice][EXPAN].f
 //
 #define EXS_TRIGGER(voice)    exvoice[voice][EXTRIGGER].b
@@ -391,7 +393,7 @@ enum {
     EXFREQACTIVE, // active boolean
     EXFREQMOD,    // freq modulator voice index
     //
-    // EXFREQMODAMT, // amount of frequency modulation
+    EXFREQMODAMT, // amount of frequency modulation
     //
     // EXFREQGLIS,  // glissando
     // EXFREQGLISD, // glissando delta
@@ -411,6 +413,7 @@ enum {
     // EXAMPEGAMT,
     //
     EXPAN,     // double for human 0=left, .5=center, 1=right
+    EXLINK,  // which osc to link for velocity
     //EXPANLEFT,  // i16 calculated from EXPAN
     //EXPANRIGHT, // i16 calculated from EXPAN
     //
@@ -477,14 +480,17 @@ union ExVoice *exvoice_xyz[EXMAXCOLS];
 
 #define DDS_MAGIC (0.32874)
 
+#define DDS_FREQ_TYPE int32_t
+//#define DDS_FREQ_TYPE int64_t
+
 void wave_freq(int voice, double f) {
     if (EXS_DETUNE(voice) != 0) {
       f *= EXS_DETUNE(voice);
     }
     if (EXS_WAVE(voice) == EXWAVEPCM) {
-        EXS_FREQINC(voice) = (int32_t)((f / 440.0) * DDS_SCALE);
+        EXS_FREQINC(voice) = (DDS_FREQ_TYPE)((f / 440.0) * DDS_SCALE);
     } else {
-        EXS_FREQINC(voice) = (int32_t)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
+        EXS_FREQINC(voice) = (DDS_FREQ_TYPE)((f * EXS_FREQSIZE(voice)) / SAMPLE_RATE * DDS_SCALE);
     }
     // if (EXS_FREQBASE(voice) > 0) {
     //     // how to adjust for the real base...
@@ -533,24 +539,11 @@ void wave_extra(int voice, int16_t *ptr, int len, char active, double base) {
     if (wave == EXWAVEPCM) {
         int patch = EXS_PATCH(voice);
         EXS_FREQONE(voice) = uwave_one[patch];
-#if 0
-        printf("# v%d w%d p%d # ptr:%p len:%d oneshot:%d active:%d base:%g\n",
-            voice,
-            wave,
-            patch,
-            uwave[patch],
-            uwave_size[patch],
-            uwave_one[patch],
-            active,
-            uwave_freq[patch]);
-#endif
     } else {
       EXS_FREQONE(voice) = 0;
     }
-    if (base != EXS_FREQBASE(voice)) {
-        EXS_FREQBASE(voice) = base;
-        wave_freq(voice, EXS_FREQ(voice));
-    }
+    EXS_FREQBASE(voice) = base;
+    wave_freq(voice, EXS_FREQ(voice));
 }
 
 // LFO-ey stuff
@@ -810,6 +803,7 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].sustain_level);
 #endif
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
+    if (EXS_LINK(voice) >= 0) printf(" L%d", EXS_LINK(voice));
     printf(" b%d", EXS_FREQONE(voice)==0);
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
@@ -838,7 +832,7 @@ int iswavinuse(int i) {
     return r;
 }
 
-int getwav(int i, char output) {
+int getsample(int i, char output) {
     if (iswavinuse(i)) {
         if (output) printf("P%d is in use, cannot free\n", i);
         return 0;
@@ -921,6 +915,7 @@ void reset_voice(int v) {
   EXS_SHI(v) = 0;
   EXS_ISMOD(v) = 0;
   EXS_AMP(v) = 0;
+  EXS_LINK(v) = -1;
   calc_ratio(v);
   wave_init(v, pwave_size[EXS_WAVE(v)], EXS_FREQ(v), pwave[EXS_WAVE(v)], v);
   EXS_FREQACTIVE(v) = 0;
@@ -930,6 +925,38 @@ int valid_wave(int w) {
   if (w >= 0 && w < PWAVEMAX) return 1;
   if (w >= EXWAVEKRG1 && w <= EXWAVEOUT) return 1;
   return 0;
+}
+
+void vel_voice(int voice, double velocity) {
+  if (velocity <= 0.0) {
+    if (EXS_FREQONE(voice)) EXS_FREQACTIVE(voice) = 0;
+    if (EXS_GATE(voice)) {
+      env_off(voice);
+    } else {
+      EXS_AMP(voice) = 0.0;
+      calc_ratio(voice);
+    }
+  } else if (velocity > 0.0) {
+    EXS_FREQACC(voice) = 0;
+    EXS_AMP(voice) = velocity;
+    calc_ratio(voice);
+    env_on(voice);
+    EXS_FREQACTIVE(voice) = 1;
+  }
+}
+
+void vel_voices(int voice, double velocity) {
+  vel_voice(voice, velocity);
+  double f = EXS_FREQ(voice);
+  for (int i=0; i<VOICES; i++) {
+    if (i == voice) continue;
+    if (EXS_LINK(i) != voice) continue;
+    vel_voice(i, velocity);
+    if (EXS_FREQ(i) != f) {
+      EXS_FREQ(i) = f;
+      wave_freq(i, f);
+    }
+  }
 }
 
 int wire(char *line, int *thisvoice, char *output) {
@@ -961,11 +988,22 @@ int wire(char *line, int *thisvoice, char *output) {
                 break;
               case 'p':
                 p++;
-                // get ###.wav
+                // get .wav IFF file 16-bits, stereo
+                {
                 int n = mytol(&line[p], &valid, &next);
                 if (!valid) goto errexit;
                 p += next-1;
-                getwav(n, *output);
+                getsample(n, *output);
+                }
+                break;
+              case 'w':
+                // get comma separated text file -32767 to 32767
+                {
+                int n = mytol(&line[p], &valid, &next);
+                if (!valid) goto errexit;
+                p += next-1;
+                //getlist(n, *output); // TODO
+                }
                 break;
               default:
                 valid = 0;
@@ -1102,6 +1140,7 @@ int wire(char *line, int *thisvoice, char *output) {
                 continue;
             }
         } else if (c == 'f') {
+            // TODO look at EXS_LINK?
             double f = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             if (f >= 0.0) {
@@ -1113,6 +1152,7 @@ int wire(char *line, int *thisvoice, char *output) {
             if (!valid) break; else p += next-1;
             if (n >= 0 && n < VOICES) voice = n;
         } else if (c == 'a') {
+            // TODO look at EXS_LINK?
             double a = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             a *= AFACTOR;
@@ -1202,7 +1242,10 @@ int wire(char *line, int *thisvoice, char *output) {
                 }
                 wave_extra(voice, ptr, len, forceactive, base);
             }
-        
+        } else if (c == 'L') {
+            double link = mytod(&line[p], &valid, &next);
+            if (!valid) break; else p += next-1;
+            EXS_LINK(voice) = link;
         } else if (c == 'Q') {
             double pan = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1215,13 +1258,6 @@ int wire(char *line, int *thisvoice, char *output) {
                 EXS_FREQ(voice) = 440.0 * pow(2.0, (note - 69.0) / 12.0);
                 wave_freq(voice, EXS_FREQ(voice));
             }
-        // } else if (c == 'L') {
-        //     int n = mytol(&line[p], &valid, &next);
-        //     // printf("LAT :: p:%d :: n:%d valid:%d next:%d\n", p, n, valid, next);
-        //     if (!valid) break; else p += next-1;
-        //     if (n > 0) {
-        //         latency_hack_ms = n;
-        //     }
         } else if (c == 'T') {
           timerclear(&EXS_TRIGGER0(voice));
           timerclear(&EXS_TRIGGER1(voice));
@@ -1266,12 +1302,14 @@ int wire(char *line, int *thisvoice, char *output) {
                   }
                 }
             }
-        } else if (c == 'L') {
+        } else if (c == 't') {
             trigger_active(output);
         } else if (c == 'l') {
             double velocity = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             velocity *= 0.025;
+            vel_voices(voice, velocity);
+#if 0
             if (velocity <= 0.0) {
                 if (EXS_FREQONE(voice)) EXS_FREQACTIVE(voice) = 0;
                 if (EXS_GATE(voice)) {
@@ -1287,6 +1325,7 @@ int wire(char *line, int *thisvoice, char *output) {
                 env_on(voice);
                 EXS_FREQACTIVE(voice) = 1;
             }
+#endif
         } else if (c == '[') {
             int x = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
@@ -1391,16 +1430,19 @@ void engine(int16_t *playback, int16_t *capture, int frame_count) {
               b = wave_next(i);
             }
             b = b * EXS_AMPTOP(i) / EXS_AMPBOT(i);
-            if (EXS_FREQMOD(i) >= 0) {
-                wave_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(EXS_FREQMOD(i)));
+            int fm = EXS_FREQMOD(i);
+            if (fm >= 0) {
+                wave_freq(i, EXS_FREQ(i) + (double)EXS_LASTSAMPLE(fm));
             }
             // TODO... the eg next should have happened earlier. this should apply that value if enabled
+#if 0
             if (EXS_GATE(i)) {
                 int32_t envelope_value = env_next(i);
                 //int32_t sample = (b * envelope_value) >> ENV_FRAC_BITS;
                 int32_t sample = (b * envelope_value);
                 b = sample;
             }
+#endif
             if (EXS_SH(i)) {
                 if (EXS_SHI(i) > EXS_SH(i)) {
                     // get next sample
