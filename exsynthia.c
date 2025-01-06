@@ -357,6 +357,7 @@ void env_off(int v) {
 #define EXS_NOTE(voice)       exvoice[voice][EXNOTE].f
 #define EXS_PATCH(voice)      exvoice[voice][EXPATCH].i
 #define EXS_LINK(voice)       exvoice[voice][EXLINK].i
+#define EXS_LINKVEL(voice)    exvoice[voice][EXLINKVEL].f
 #define EXS_PAN(voice)        exvoice[voice][EXPAN].f
 //
 #define EXS_TRIGGER(voice)    exvoice[voice][EXTRIGGER].b
@@ -414,6 +415,7 @@ enum {
     //
     EXPAN,     // double for human 0=left, .5=center, 1=right
     EXLINK,  // which osc to link for velocity
+    EXLINKVEL, // velocity factor
     //EXPANLEFT,  // i16 calculated from EXPAN
     //EXPANRIGHT, // i16 calculated from EXPAN
     //
@@ -803,7 +805,12 @@ void show_voice(char flag, int voice, char forceshow) {
         env[voice].sustain_level);
 #endif
     if (EXS_SH(voice)) printf(" d%d", EXS_SH(voice));
-    if (EXS_LINK(voice) >= 0) printf(" L%d", EXS_LINK(voice));
+    if (EXS_LINK(voice) >= 0) {
+        printf(" L%d", EXS_LINK(voice));
+        if (EXS_LINKVEL(voice) != 0) {
+            printf(",%g", EXS_LINKVEL(voice));
+        }
+    }
     printf(" b%d", EXS_FREQONE(voice)==0);
     if (EXS_WAVE(voice) == EXWAVEPCM) printf(" p%d", EXS_PATCH(voice));
     printf(" #");
@@ -916,6 +923,7 @@ void reset_voice(int v) {
   EXS_ISMOD(v) = 0;
   EXS_AMP(v) = 0;
   EXS_LINK(v) = -1;
+  EXS_LINKVEL(v) = 0;
   calc_ratio(v);
   wave_init(v, pwave_size[EXS_WAVE(v)], EXS_FREQ(v), pwave[EXS_WAVE(v)], v);
   EXS_FREQACTIVE(v) = 0;
@@ -938,6 +946,9 @@ void vel_voice(int voice, double velocity) {
     }
   } else if (velocity > 0.0) {
     EXS_FREQACC(voice) = 0;
+    if (EXS_LINKVEL(voice) != 0) {
+        velocity *= EXS_LINKVEL(voice);
+    }
     EXS_AMP(voice) = velocity;
     calc_ratio(voice);
     env_on(voice);
@@ -1243,9 +1254,16 @@ int wire(char *line, int *thisvoice, char *output) {
                 wave_extra(voice, ptr, len, forceactive, base);
             }
         } else if (c == 'L') {
-            double link = mytod(&line[p], &valid, &next);
+            int link = mytol(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
             EXS_LINK(voice) = link;
+            char peek = line[p];
+            if (peek == ',') {
+                p++;
+                double amt = mytod(&line[p], &valid, &next);
+                if (!valid) break; else p += next-1;
+                EXS_LINKVEL(voice) = amt;
+            }
         } else if (c == 'Q') {
             double pan = mytod(&line[p], &valid, &next);
             if (!valid) break; else p += next-1;
